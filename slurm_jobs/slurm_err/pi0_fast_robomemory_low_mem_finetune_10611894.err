@@ -1,0 +1,310 @@
+16:25:18.620 [I] Running on: iris-hgx-2.stanford.edu                                              (3339673:train.py:251)
+16:25:21.800 [I] Created BasePyTreeCheckpointHandler: use_ocdbt=True, use_zarr3=False, pytree_metadata_options=PyTreeMetadataOptions(support_rich_types=False), array_metadata_store=<orbax.checkpoint._src.metadata.array_metadata_store.Store object at 0x14dc4a86c110> (3339673:base_pytree_checkpoint_handler.py:334)
+16:25:21.800 [I] Created BasePyTreeCheckpointHandler: use_ocdbt=True, use_zarr3=False, pytree_metadata_options=PyTreeMetadataOptions(support_rich_types=False), array_metadata_store=<orbax.checkpoint._src.metadata.array_metadata_store.Store object at 0x14dc4a86c110> (3339673:base_pytree_checkpoint_handler.py:334)
+16:25:21.801 [I] [thread=MainThread] Failed to get flag value for EXPERIMENTAL_ORBAX_USE_DISTRIBUTED_PROCESS_ID. (3339673:multihost.py:390)
+16:25:21.802 [I] [process=0][thread=MainThread] CheckpointManager init: checkpointers=None, item_names=None, item_handlers={'assets': <openpi.training.checkpoints.CallbackHandler object at 0x14db49585ad0>, 'train_state': <orbax.checkpoint._src.handlers.pytree_checkpoint_handler.PyTreeCheckpointHandler object at 0x14db49587090>, 'params': <orbax.checkpoint._src.handlers.pytree_checkpoint_handler.PyTreeCheckpointHandler object at 0x14db498e3090>}, handler_registry=None (3339673:checkpoint_manager.py:620)
+16:25:21.803 [I] Deferred registration for item: "assets". Adding handler `<openpi.training.checkpoints.CallbackHandler object at 0x14db49585ad0>` for item "assets" and save args `<class 'openpi.training.checkpoints.CallbackSave'>` and restore args `<class 'openpi.training.checkpoints.CallbackRestore'>` to `_handler_registry`. (3339673:composite_checkpoint_handler.py:234)
+16:25:21.803 [I] Deferred registration for item: "train_state". Adding handler `<orbax.checkpoint._src.handlers.pytree_checkpoint_handler.PyTreeCheckpointHandler object at 0x14db49587090>` for item "train_state" and save args `<class 'orbax.checkpoint._src.handlers.pytree_checkpoint_handler.PyTreeSaveArgs'>` and restore args `<class 'orbax.checkpoint._src.handlers.pytree_checkpoint_handler.PyTreeRestoreArgs'>` to `_handler_registry`. (3339673:composite_checkpoint_handler.py:234)
+16:25:21.803 [I] Deferred registration for item: "params". Adding handler `<orbax.checkpoint._src.handlers.pytree_checkpoint_handler.PyTreeCheckpointHandler object at 0x14db498e3090>` for item "params" and save args `<class 'orbax.checkpoint._src.handlers.pytree_checkpoint_handler.PyTreeSaveArgs'>` and restore args `<class 'orbax.checkpoint._src.handlers.pytree_checkpoint_handler.PyTreeRestoreArgs'>` to `_handler_registry`. (3339673:composite_checkpoint_handler.py:234)
+16:25:21.803 [I] Deferred registration for item: "metrics". Adding handler `<orbax.checkpoint._src.handlers.json_checkpoint_handler.JsonCheckpointHandler object at 0x14db4976edd0>` for item "metrics" and save args `<class 'orbax.checkpoint._src.handlers.json_checkpoint_handler.JsonSaveArgs'>` and restore args `<class 'orbax.checkpoint._src.handlers.json_checkpoint_handler.JsonRestoreArgs'>` to `_handler_registry`. (3339673:composite_checkpoint_handler.py:234)
+16:25:21.804 [I] Initialized registry DefaultCheckpointHandlerRegistry({('assets', <class 'openpi.training.checkpoints.CallbackSave'>): <openpi.training.checkpoints.CallbackHandler object at 0x14db49585ad0>, ('assets', <class 'openpi.training.checkpoints.CallbackRestore'>): <openpi.training.checkpoints.CallbackHandler object at 0x14db49585ad0>, ('train_state', <class 'orbax.checkpoint._src.handlers.pytree_checkpoint_handler.PyTreeSaveArgs'>): <orbax.checkpoint._src.handlers.pytree_checkpoint_handler.PyTreeCheckpointHandler object at 0x14db49587090>, ('train_state', <class 'orbax.checkpoint._src.handlers.pytree_checkpoint_handler.PyTreeRestoreArgs'>): <orbax.checkpoint._src.handlers.pytree_checkpoint_handler.PyTreeCheckpointHandler object at 0x14db49587090>, ('params', <class 'orbax.checkpoint._src.handlers.pytree_checkpoint_handler.PyTreeSaveArgs'>): <orbax.checkpoint._src.handlers.pytree_checkpoint_handler.PyTreeCheckpointHandler object at 0x14db498e3090>, ('params', <class 'orbax.checkpoint._src.handlers.pytree_checkpoint_handler.PyTreeRestoreArgs'>): <orbax.checkpoint._src.handlers.pytree_checkpoint_handler.PyTreeCheckpointHandler object at 0x14db498e3090>, ('metrics', <class 'orbax.checkpoint._src.handlers.json_checkpoint_handler.JsonSaveArgs'>): <orbax.checkpoint._src.handlers.json_checkpoint_handler.JsonCheckpointHandler object at 0x14db4976edd0>, ('metrics', <class 'orbax.checkpoint._src.handlers.json_checkpoint_handler.JsonRestoreArgs'>): <orbax.checkpoint._src.handlers.json_checkpoint_handler.JsonCheckpointHandler object at 0x14db4976edd0>}). (3339673:composite_checkpoint_handler.py:502)
+16:25:21.804 [I] orbax-checkpoint version: 0.11.13                                                (3339673:abstract_checkpointer.py:35)
+16:25:21.804 [I] [process=0][thread=MainThread] Using barrier_sync_fn: <function get_barrier_sync_fn.<locals>.<lambda> at 0x14db497319e0> timeout: 7200 secs and primary_host=0 for async checkpoint writes (3339673:async_checkpointer.py:170)
+16:25:21.813 [I] Read Metadata={'item_handlers': {'assets': 'openpi.training.checkpoints.CallbackHandler', 'params': 'orbax.checkpoint._src.handlers.pytree_checkpoint_handler.PyTreeCheckpointHandler', 'train_state': 'orbax.checkpoint._src.handlers.pytree_checkpoint_handler.PyTreeCheckpointHandler'}, 'metrics': {}, 'performance_metrics': {}, 'init_timestamp_nsecs': 1752705303684065497, 'commit_timestamp_nsecs': 1752705339214941662, 'custom_metadata': {}} from /iris/u/jrpan/openpi/checkpoints/pi0_fast_robomemory_low_mem_finetune/lora_10k_0716/2000/_CHECKPOINT_METADATA (3339673:checkpoint.py:226)
+16:25:21.814 [W] Missing metrics for step 2000                                                    (3339673:checkpoint_manager.py:1654)
+16:25:21.815 [E] File /iris/u/jrpan/openpi/checkpoints/pi0_fast_robomemory_low_mem_finetune/lora_10k_0716/2000/metrics/metrics not found. (3339673:checkpoint_manager.py:1655)
+16:25:21.816 [I] Found 1 checkpoint steps in /iris/u/jrpan/openpi/checkpoints/pi0_fast_robomemory_low_mem_finetune/lora_10k_0716 (3339673:checkpoint_manager.py:1701)
+16:25:21.817 [I] [process=0][thread=MainThread] CheckpointManager created,  primary_host=0, CheckpointManagerOptions=CheckpointManagerOptions(save_interval_steps=1, max_to_keep=1, keep_time_interval=None, keep_period=2000, should_keep_fn=None, best_fn=None, best_mode='max', keep_checkpoints_without_metrics=True, step_prefix=None, step_format_fixed_length=None, step_name_format=None, create=False, cleanup_tmp_directories=False, save_on_steps=frozenset(), single_host_load_and_broadcast=False, todelete_subdir=None, enable_background_delete=False, read_only=False, enable_async_checkpointing=True, async_options=AsyncOptions(timeout_secs=7200, barrier_sync_fn=None, post_finalization_callback=None, create_directories_asynchronously=True), multiprocessing_options=MultiprocessingOptions(primary_host=0, active_processes=None, barrier_sync_key_prefix=None), should_save_fn=None, file_options=FileOptions(path_permission_mode=None), save_root_metadata=True, temporary_path_class=None, save_decision_policy=None, prevent_write_metrics=False), root_directory=/iris/u/jrpan/openpi/checkpoints/pi0_fast_robomemory_low_mem_finetune/lora_10k_0716: <orbax.checkpoint.checkpoint_manager.CheckpointManager object at 0x14db4954ad90> (3339673:checkpoint_manager.py:801)
+2025/07/16 16:25:21 ERROR failed to get logger path error="error opening log file: open /sailhome/jrpan/.cache/wandb/logs/core-debug-20250716_162521.log: disk quota exceeded"
+2025/07/16 16:25:21 INFO server is running addr=127.0.0.1:43383
+2025/07/16 16:25:21 INFO Will exit if parent process dies. ppid=3339673
+2025/07/16 16:25:22 INFO connection: ManageConnectionData: new connection created id=127.0.0.1:42170
+wandb: Currently logged in as: jpan00 (robo-memory) to https://api.wandb.ai. Use `wandb login --relogin` to force relogin
+2025/07/16 16:25:22 INFO handleInformInit: received streamId=29s9d6jz id=127.0.0.1:42170
+2025/07/16 16:25:22 INFO handleInformInit: stream started streamId=29s9d6jz id=127.0.0.1:42170
+wandb: Tracking run with wandb version 0.19.11
+wandb: Run data is saved locally in /iris/u/jrpan/openpi/wandb/run-20250716_162522-29s9d6jz
+wandb: Run `wandb offline` to turn off syncing.
+wandb: Resuming run lora_10k_0716
+wandb: ⭐️ View project at https://wandb.ai/robo-memory/openpi
+wandb: 🚀 View run at https://wandb.ai/robo-memory/openpi/runs/29s9d6jz
+Some kwargs in processor config are unused and will not have any effect: scale, min_token, vocab_size, action_dim, time_horizon. 
+Some kwargs in processor config are unused and will not have any effect: scale, min_token, vocab_size, action_dim, time_horizon. 
+16:25:27.192 [I] Loaded norm stats from /iris/u/jrpan/openpi/assets/pi0_fast_robomemory_low_mem_finetune/jennypan00/pi0_fast_ft_droid_lerobot (3339673:config.py:170)
+Some kwargs in processor config are unused and will not have any effect: scale, min_token, vocab_size, action_dim, time_horizon. 
+Some kwargs in processor config are unused and will not have any effect: scale, min_token, vocab_size, action_dim, time_horizon. 
+16:25:31.168 [I] Loaded norm stats from /iris/u/jrpan/openpi/assets/pi0_fast_robomemory_low_mem_finetune/jennypan00/pi0_fast_ft_droid_lerobot (3339673:config.py:170)
+16:26:19.764 [I] Initialized data loader:
+[0].images['base_0_rgb']: (128, 224, 224, 3)@float32
+[0].images['base_1_rgb']: (128, 224, 224, 3)@float32
+[0].images['wrist_0_rgb']: (128, 224, 224, 3)@float32
+[0].image_masks['base_0_rgb']: (128,)@bool
+[0].image_masks['base_1_rgb']: (128,)@bool
+[0].image_masks['wrist_0_rgb']: (128,)@bool
+[0].state: (128, 8)@float32
+[0].tokenized_prompt: (128, 180)@int32
+[0].tokenized_prompt_mask: (128, 180)@bool
+[0].token_ar_mask: (128, 180)@int32
+[0].token_loss_mask: (128, 180)@bool
+[1]: (128, 10, 8)@float32 (3339673:train.py:292)
+16:26:22.854 [I] Initialized train state:
+['PaliGemma']['img']['Transformer']['encoder_norm']['bias'].value: (1152,)@float32
+['PaliGemma']['img']['Transformer']['encoder_norm']['scale'].value: (1152,)@float32
+['PaliGemma']['img']['Transformer']['encoderblock']['LayerNorm_0']['bias'].value: (27, 1152)@float32
+['PaliGemma']['img']['Transformer']['encoderblock']['LayerNorm_0']['scale'].value: (27, 1152)@float32
+['PaliGemma']['img']['Transformer']['encoderblock']['LayerNorm_1']['bias'].value: (27, 1152)@float32
+['PaliGemma']['img']['Transformer']['encoderblock']['LayerNorm_1']['scale'].value: (27, 1152)@float32
+['PaliGemma']['img']['Transformer']['encoderblock']['MlpBlock_0']['Dense_0']['bias'].value: (27, 4304)@float32
+['PaliGemma']['img']['Transformer']['encoderblock']['MlpBlock_0']['Dense_0']['kernel'].value: (27, 1152, 4304)@float32
+['PaliGemma']['img']['Transformer']['encoderblock']['MlpBlock_0']['Dense_1']['bias'].value: (27, 1152)@float32
+['PaliGemma']['img']['Transformer']['encoderblock']['MlpBlock_0']['Dense_1']['kernel'].value: (27, 4304, 1152)@float32
+['PaliGemma']['img']['Transformer']['encoderblock']['MultiHeadDotProductAttention_0']['key']['bias'].value: (27, 16, 72)@float32
+['PaliGemma']['img']['Transformer']['encoderblock']['MultiHeadDotProductAttention_0']['key']['kernel'].value: (27, 1152, 16, 72)@float32
+['PaliGemma']['img']['Transformer']['encoderblock']['MultiHeadDotProductAttention_0']['out']['bias'].value: (27, 1152)@float32
+['PaliGemma']['img']['Transformer']['encoderblock']['MultiHeadDotProductAttention_0']['out']['kernel'].value: (27, 16, 72, 1152)@float32
+['PaliGemma']['img']['Transformer']['encoderblock']['MultiHeadDotProductAttention_0']['query']['bias'].value: (27, 16, 72)@float32
+['PaliGemma']['img']['Transformer']['encoderblock']['MultiHeadDotProductAttention_0']['query']['kernel'].value: (27, 1152, 16, 72)@float32
+['PaliGemma']['img']['Transformer']['encoderblock']['MultiHeadDotProductAttention_0']['value']['bias'].value: (27, 16, 72)@float32
+['PaliGemma']['img']['Transformer']['encoderblock']['MultiHeadDotProductAttention_0']['value']['kernel'].value: (27, 1152, 16, 72)@float32
+['PaliGemma']['img']['embedding']['bias'].value: (1152,)@float32
+['PaliGemma']['img']['embedding']['kernel'].value: (14, 14, 3, 1152)@float32
+['PaliGemma']['img']['head']['bias'].value: (2048,)@float32
+['PaliGemma']['img']['head']['kernel'].value: (1152, 2048)@float32
+['PaliGemma']['img']['pos_embedding'].value: (1, 256, 1152)@float32
+['PaliGemma']['llm']['embedder']['input_embedding'].value: (257152, 2048)@bfloat16
+['PaliGemma']['llm']['final_norm']['scale'].value: (2048,)@bfloat16
+['PaliGemma']['llm']['layers']['attn']['attn_vec_einsum']['lora_a'].value: (18, 8, 256, 16)@float32
+['PaliGemma']['llm']['layers']['attn']['attn_vec_einsum']['lora_b'].value: (18, 8, 16, 2048)@float32
+['PaliGemma']['llm']['layers']['attn']['attn_vec_einsum']['w'].value: (18, 8, 256, 2048)@bfloat16
+['PaliGemma']['llm']['layers']['attn']['kv_einsum']['lora_a'].value: (18, 2, 1, 2048, 16)@float32
+['PaliGemma']['llm']['layers']['attn']['kv_einsum']['lora_b'].value: (18, 2, 1, 16, 256)@float32
+['PaliGemma']['llm']['layers']['attn']['kv_einsum']['w'].value: (18, 2, 1, 2048, 256)@bfloat16
+['PaliGemma']['llm']['layers']['attn']['q_einsum']['lora_a'].value: (18, 8, 2048, 16)@float32
+['PaliGemma']['llm']['layers']['attn']['q_einsum']['lora_b'].value: (18, 8, 16, 256)@float32
+['PaliGemma']['llm']['layers']['attn']['q_einsum']['w'].value: (18, 8, 2048, 256)@bfloat16
+['PaliGemma']['llm']['layers']['mlp']['gating_einsum'].value: (18, 2, 2048, 16384)@bfloat16
+['PaliGemma']['llm']['layers']['mlp']['gating_einsum_lora_a'].value: (18, 2, 2048, 16)@float32
+['PaliGemma']['llm']['layers']['mlp']['gating_einsum_lora_b'].value: (18, 2, 16, 16384)@float32
+['PaliGemma']['llm']['layers']['mlp']['linear'].value: (18, 16384, 2048)@bfloat16
+['PaliGemma']['llm']['layers']['mlp']['linear_lora_a'].value: (18, 16384, 16)@float32
+['PaliGemma']['llm']['layers']['mlp']['linear_lora_b'].value: (18, 16, 2048)@float32
+['PaliGemma']['llm']['layers']['pre_attention_norm']['scale'].value: (18, 2048)@bfloat16
+['PaliGemma']['llm']['layers']['pre_ffw_norm']['scale'].value: (18, 2048)@bfloat16 (3339673:train.py:303)
+16:26:22.860 [I] Restoring checkpoint from /iris/u/jrpan/openpi/checkpoints/pi0_fast_robomemory_low_mem_finetune/lora_10k_0716/2000. (3339673:checkpointer.py:298)
+/iris/u/jrpan/openpi/.venv/lib/python3.11/site-packages/orbax/checkpoint/_src/serialization/type_handlers.py:1251: UserWarning: Sharding info not provided when restoring. Populating sharding info from sharding file. Please note restoration time will be slightly increased due to reading from file. Note also that this option is unsafe when restoring on a different topology than the checkpoint was saved with.
+  warnings.warn(
+wandb: WARNING Tried to log to step 0 that is less than the current step 2901. Steps must be monotonically increasing, so this data will be ignored. See https://wandb.me/define-metric to log data out of order.
+16:26:31.271 [I] [process=0] /jax/checkpoint/read/bytes_per_sec: 3.0 GiB/s (total bytes: 25.3 GiB) (time elapsed: 8 seconds) (per-host) (3339673:base_pytree_checkpoint_handler.py:114)
+16:26:33.168 [I] [process=0] /jax/checkpoint/read/bytes_per_sec: 7.0 GiB/s (total bytes: 13.2 GiB) (time elapsed: a second) (per-host) (3339673:base_pytree_checkpoint_handler.py:114)
+16:26:33.169 [I] Finished restoring checkpoint in 10.31 seconds from /iris/u/jrpan/openpi/checkpoints/pi0_fast_robomemory_low_mem_finetune/lora_10k_0716/2000. (3339673:checkpointer.py:309)
+16:26:33.170 [I] {'step': 2000, 'event_type': 'restore', 'directory': '/iris/u/jrpan/openpi/checkpoints/pi0_fast_robomemory_low_mem_finetune/lora_10k_0716', 'checkpointer_start_time': 1752708382.8607264, 'checkpointer_duration_secs': 10.309450387954712, 'checkpoint_manager_start_time': 1752708382.859581, 'checkpoint_manager_duration_secs': 10.310599327087402} (3339673:standard_logger.py:34)
+16:26:33.281 [I] Progress on: 2.00kit/10.0kit rate:- remaining:? elapsed:00:00 postfix:-          (3339673:tqdm_logging.py:145)
+Exception in thread Thread-1 (inner):
+Traceback (most recent call last):
+  File "/sailhome/jrpan/.local/share/uv/python/cpython-3.11.13-linux-x86_64-gnu/lib/python3.11/threading.py", line 1045, in _bootstrap_inner
+    self.run()
+  File "/sailhome/jrpan/.local/share/uv/python/cpython-3.11.13-linux-x86_64-gnu/lib/python3.11/threading.py", line 982, in run
+    self._target(*self._args, **self._kwargs)
+  File "/iris/u/jrpan/openpi/scripts/train.py", line 16, in inner
+    jax.profiler.save_device_memory_profile(f'{dir_prefix}/memory.prof.new')
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+FileNotFoundError: [Errno 2] No such file or directory: '/dev/shm/memory.prof.new' -> '/dev/shm/memory.prof'
+16:26:44.419 [I] Progress on: 2.00kit/10.0kit rate:2.9s/it remaining:6:28:42 elapsed:00:11 postfix:- (3339673:tqdm_logging.py:145)
+16:26:54.535 [I] Progress on: 2.01kit/10.0kit rate:1.3s/it remaining:2:55:49 elapsed:00:21 postfix:- (3339673:tqdm_logging.py:145)
+16:27:05.551 [I] Progress on: 2.02kit/10.0kit rate:1.2s/it remaining:2:43:42 elapsed:00:32 postfix:- (3339673:tqdm_logging.py:145)
+16:27:15.583 [I] Progress on: 2.03kit/10.0kit rate:1.2s/it remaining:2:44:36 elapsed:00:42 postfix:- (3339673:tqdm_logging.py:145)
+16:27:26.784 [I] Progress on: 2.04kit/10.0kit rate:1.2s/it remaining:2:43:11 elapsed:00:53 postfix:- (3339673:tqdm_logging.py:145)
+16:27:37.979 [I] Progress on: 2.05kit/10.0kit rate:1.2s/it remaining:2:44:13 elapsed:01:04 postfix:- (3339673:tqdm_logging.py:145)
+16:27:49.088 [I] Progress on: 2.06kit/10.0kit rate:1.2s/it remaining:2:41:08 elapsed:01:15 postfix:- (3339673:tqdm_logging.py:145)
+16:28:00.244 [I] Progress on: 2.06kit/10.0kit rate:1.2s/it remaining:2:43:30 elapsed:01:26 postfix:- (3339673:tqdm_logging.py:145)
+16:28:11.405 [I] Progress on: 2.07kit/10.0kit rate:1.2s/it remaining:2:43:47 elapsed:01:38 postfix:- (3339673:tqdm_logging.py:145)
+16:28:22.527 [I] Progress on: 2.08kit/10.0kit rate:1.2s/it remaining:2:42:58 elapsed:01:49 postfix:- (3339673:tqdm_logging.py:145)
+16:28:33.627 [I] Progress on: 2.09kit/10.0kit rate:1.2s/it remaining:2:41:26 elapsed:02:00 postfix:- (3339673:tqdm_logging.py:145)
+16:28:44.965 [I] Progress on: 2.10kit/10.0kit rate:1.2s/it remaining:2:40:43 elapsed:02:11 postfix:- (3339673:tqdm_logging.py:145)
+wandb: WARNING Tried to log to step 2100 that is less than the current step 2901. Steps must be monotonically increasing, so this data will be ignored. See https://wandb.me/define-metric to log data out of order.
+16:28:56.126 [I] Progress on: 2.11kit/10.0kit rate:1.2s/it remaining:2:41:09 elapsed:02:22 postfix:- (3339673:tqdm_logging.py:145)
+16:29:07.220 [I] Progress on: 2.12kit/10.0kit rate:1.2s/it remaining:2:41:24 elapsed:02:33 postfix:- (3339673:tqdm_logging.py:145)
+16:29:18.317 [I] Progress on: 2.13kit/10.0kit rate:1.2s/it remaining:2:42:10 elapsed:02:45 postfix:- (3339673:tqdm_logging.py:145)
+16:29:29.388 [I] Progress on: 2.14kit/10.0kit rate:1.2s/it remaining:2:40:39 elapsed:02:56 postfix:- (3339673:tqdm_logging.py:145)
+16:29:40.474 [I] Progress on: 2.15kit/10.0kit rate:1.2s/it remaining:2:42:09 elapsed:03:07 postfix:- (3339673:tqdm_logging.py:145)
+16:29:51.579 [I] Progress on: 2.15kit/10.0kit rate:1.2s/it remaining:2:42:32 elapsed:03:18 postfix:- (3339673:tqdm_logging.py:145)
+16:30:02.629 [I] Progress on: 2.16kit/10.0kit rate:2.0s/it remaining:4:15:56 elapsed:03:29 postfix:- (3339673:tqdm_logging.py:145)
+16:30:13.116 [I] Progress on: 2.17kit/10.0kit rate:1.4s/it remaining:3:02:12 elapsed:03:39 postfix:- (3339673:tqdm_logging.py:145)
+16:30:23.317 [I] Progress on: 2.18kit/10.0kit rate:1.3s/it remaining:2:44:55 elapsed:03:50 postfix:- (3339673:tqdm_logging.py:145)
+16:30:34.399 [I] Progress on: 2.19kit/10.0kit rate:1.2s/it remaining:2:41:17 elapsed:04:01 postfix:- (3339673:tqdm_logging.py:145)
+16:30:45.538 [I] Progress on: 2.20kit/10.0kit rate:1.2s/it remaining:2:41:25 elapsed:04:12 postfix:- (3339673:tqdm_logging.py:145)
+wandb: WARNING Tried to log to step 2200 that is less than the current step 2901. Steps must be monotonically increasing, so this data will be ignored. See https://wandb.me/define-metric to log data out of order.
+16:30:55.654 [I] Progress on: 2.20kit/10.0kit rate:1.2s/it remaining:2:41:43 elapsed:04:22 postfix:- (3339673:tqdm_logging.py:145)
+16:31:05.757 [I] Progress on: 2.21kit/10.0kit rate:1.3s/it remaining:2:44:21 elapsed:04:32 postfix:- (3339673:tqdm_logging.py:145)
+16:31:16.860 [I] Progress on: 2.22kit/10.0kit rate:1.2s/it remaining:2:40:50 elapsed:04:43 postfix:- (3339673:tqdm_logging.py:145)
+16:31:26.909 [I] Progress on: 2.23kit/10.0kit rate:1.2s/it remaining:2:40:23 elapsed:04:53 postfix:- (3339673:tqdm_logging.py:145)
+16:31:38.011 [I] Progress on: 2.24kit/10.0kit rate:1.2s/it remaining:2:38:39 elapsed:05:04 postfix:- (3339673:tqdm_logging.py:145)
+16:31:49.166 [I] Progress on: 2.25kit/10.0kit rate:1.2s/it remaining:2:38:46 elapsed:05:15 postfix:- (3339673:tqdm_logging.py:145)
+16:32:00.414 [I] Progress on: 2.26kit/10.0kit rate:1.3s/it remaining:2:41:29 elapsed:05:27 postfix:- (3339673:tqdm_logging.py:145)
+16:32:11.541 [I] Progress on: 2.27kit/10.0kit rate:1.2s/it remaining:2:39:26 elapsed:05:38 postfix:- (3339673:tqdm_logging.py:145)
+16:32:22.755 [I] Progress on: 2.27kit/10.0kit rate:1.2s/it remaining:2:40:09 elapsed:05:49 postfix:- (3339673:tqdm_logging.py:145)
+16:32:33.755 [I] Progress on: 2.28kit/10.0kit rate:1.2s/it remaining:2:36:10 elapsed:06:00 postfix:- (3339673:tqdm_logging.py:145)
+16:32:44.840 [I] Progress on: 2.29kit/10.0kit rate:1.2s/it remaining:2:36:54 elapsed:06:11 postfix:- (3339673:tqdm_logging.py:145)
+16:32:55.998 [I] Progress on: 2.30kit/10.0kit rate:1.2s/it remaining:2:39:09 elapsed:06:22 postfix:- (3339673:tqdm_logging.py:145)
+wandb: WARNING Tried to log to step 2300 that is less than the current step 2901. Steps must be monotonically increasing, so this data will be ignored. See https://wandb.me/define-metric to log data out of order.
+16:33:06.036 [I] Progress on: 2.31kit/10.0kit rate:1.2s/it remaining:2:39:54 elapsed:06:32 postfix:- (3339673:tqdm_logging.py:145)
+16:33:17.142 [I] Progress on: 2.32kit/10.0kit rate:1.2s/it remaining:2:38:50 elapsed:06:43 postfix:- (3339673:tqdm_logging.py:145)
+16:33:28.263 [I] Progress on: 2.33kit/10.0kit rate:1.4s/it remaining:2:53:30 elapsed:06:54 postfix:- (3339673:tqdm_logging.py:145)
+16:33:39.424 [I] Progress on: 2.33kit/10.0kit rate:1.2s/it remaining:2:37:39 elapsed:07:06 postfix:- (3339673:tqdm_logging.py:145)
+16:33:49.486 [I] Progress on: 2.34kit/10.0kit rate:1.3s/it remaining:2:43:58 elapsed:07:16 postfix:- (3339673:tqdm_logging.py:145)
+16:34:00.703 [I] Progress on: 2.35kit/10.0kit rate:1.3s/it remaining:2:41:47 elapsed:07:27 postfix:- (3339673:tqdm_logging.py:145)
+16:34:11.778 [I] Progress on: 2.36kit/10.0kit rate:1.2s/it remaining:2:36:43 elapsed:07:38 postfix:- (3339673:tqdm_logging.py:145)
+16:34:22.896 [I] Progress on: 2.37kit/10.0kit rate:1.2s/it remaining:2:37:11 elapsed:07:49 postfix:- (3339673:tqdm_logging.py:145)
+16:34:34.170 [I] Progress on: 2.38kit/10.0kit rate:1.3s/it remaining:2:39:42 elapsed:08:00 postfix:- (3339673:tqdm_logging.py:145)
+16:34:45.195 [I] Progress on: 2.39kit/10.0kit rate:1.2s/it remaining:2:35:24 elapsed:08:11 postfix:- (3339673:tqdm_logging.py:145)
+16:34:56.381 [I] Progress on: 2.40kit/10.0kit rate:1.2s/it remaining:2:37:53 elapsed:08:23 postfix:- (3339673:tqdm_logging.py:145)
+wandb: WARNING Tried to log to step 2400 that is less than the current step 2901. Steps must be monotonically increasing, so this data will be ignored. See https://wandb.me/define-metric to log data out of order.
+16:35:06.502 [I] Progress on: 2.40kit/10.0kit rate:1.3s/it remaining:2:39:11 elapsed:08:33 postfix:- (3339673:tqdm_logging.py:145)
+16:35:17.619 [I] Progress on: 2.41kit/10.0kit rate:1.2s/it remaining:2:35:22 elapsed:08:44 postfix:- (3339673:tqdm_logging.py:145)
+16:35:28.659 [I] Progress on: 2.42kit/10.0kit rate:1.2s/it remaining:2:33:46 elapsed:08:55 postfix:- (3339673:tqdm_logging.py:145)
+16:35:38.680 [I] Progress on: 2.43kit/10.0kit rate:1.2s/it remaining:2:37:11 elapsed:09:05 postfix:- (3339673:tqdm_logging.py:145)
+16:35:49.713 [I] Progress on: 2.44kit/10.0kit rate:1.2s/it remaining:2:36:25 elapsed:09:16 postfix:- (3339673:tqdm_logging.py:145)
+16:36:00.909 [I] Progress on: 2.45kit/10.0kit rate:1.2s/it remaining:2:36:18 elapsed:09:27 postfix:- (3339673:tqdm_logging.py:145)
+16:36:11.964 [I] Progress on: 2.46kit/10.0kit rate:1.2s/it remaining:2:34:43 elapsed:09:38 postfix:- (3339673:tqdm_logging.py:145)
+16:36:22.076 [I] Progress on: 2.47kit/10.0kit rate:1.3s/it remaining:2:38:19 elapsed:09:48 postfix:- (3339673:tqdm_logging.py:145)
+16:36:33.192 [I] Progress on: 2.48kit/10.0kit rate:1.2s/it remaining:2:34:50 elapsed:09:59 postfix:- (3339673:tqdm_logging.py:145)
+16:36:45.645 [I] Progress on: 2.48kit/10.0kit rate:1.6s/it remaining:3:25:14 elapsed:10:12 postfix:- (3339673:tqdm_logging.py:145)
+16:36:56.903 [I] Progress on: 2.49kit/10.0kit rate:1.3s/it remaining:2:37:35 elapsed:10:23 postfix:- (3339673:tqdm_logging.py:145)
+16:37:07.079 [I] Progress on: 2.50kit/10.0kit rate:1.3s/it remaining:2:42:39 elapsed:10:33 postfix:- (3339673:tqdm_logging.py:145)
+wandb: WARNING Tried to log to step 2500 that is less than the current step 2901. Steps must be monotonically increasing, so this data will be ignored. See https://wandb.me/define-metric to log data out of order.
+16:37:18.240 [I] Progress on: 2.51kit/10.0kit rate:1.2s/it remaining:2:35:00 elapsed:10:44 postfix:- (3339673:tqdm_logging.py:145)
+16:37:28.244 [I] Progress on: 2.52kit/10.0kit rate:1.2s/it remaining:2:35:34 elapsed:10:54 postfix:- (3339673:tqdm_logging.py:145)
+16:37:39.346 [I] Progress on: 2.53kit/10.0kit rate:1.2s/it remaining:2:32:46 elapsed:11:06 postfix:- (3339673:tqdm_logging.py:145)
+16:37:49.400 [I] Progress on: 2.54kit/10.0kit rate:1.3s/it remaining:2:39:37 elapsed:11:16 postfix:- (3339673:tqdm_logging.py:145)
+16:38:00.591 [I] Progress on: 2.54kit/10.0kit rate:1.2s/it remaining:2:33:43 elapsed:11:27 postfix:- (3339673:tqdm_logging.py:145)
+16:38:11.704 [I] Progress on: 2.55kit/10.0kit rate:1.2s/it remaining:2:34:01 elapsed:11:38 postfix:- (3339673:tqdm_logging.py:145)
+Exception in thread Thread-1 (inner):
+Traceback (most recent call last):
+  File "/sailhome/jrpan/.local/share/uv/python/cpython-3.11.13-linux-x86_64-gnu/lib/python3.11/threading.py", line 1045, in _bootstrap_inner
+    self.run()
+  File "/sailhome/jrpan/.local/share/uv/python/cpython-3.11.13-linux-x86_64-gnu/lib/python3.11/threading.py", line 982, in run
+    self._target(*self._args, **self._kwargs)
+  File "/iris/u/jrpan/openpi/scripts/train.py", line 17, in inner
+    posix.rename(f'{dir_prefix}/memory.prof.new', f'{dir_prefix}/memory.prof')  # atomic
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+FileNotFoundError: [Errno 2] No such file or directory: '/dev/shm/memory.prof.new' -> '/dev/shm/memory.prof'
+16:38:22.883 [I] Progress on: 2.56kit/10.0kit rate:1.2s/it remaining:2:34:42 elapsed:11:49 postfix:- (3339673:tqdm_logging.py:145)
+16:38:33.980 [I] Progress on: 2.57kit/10.0kit rate:1.2s/it remaining:2:34:12 elapsed:12:00 postfix:- (3339673:tqdm_logging.py:145)
+16:38:45.092 [I] Progress on: 2.58kit/10.0kit rate:1.2s/it remaining:2:33:20 elapsed:12:11 postfix:- (3339673:tqdm_logging.py:145)
+16:38:56.225 [I] Progress on: 2.59kit/10.0kit rate:1.2s/it remaining:2:32:50 elapsed:12:22 postfix:- (3339673:tqdm_logging.py:145)
+16:39:07.305 [I] Progress on: 2.60kit/10.0kit rate:1.2s/it remaining:2:31:52 elapsed:12:34 postfix:- (3339673:tqdm_logging.py:145)
+wandb: WARNING Tried to log to step 2600 that is less than the current step 2901. Steps must be monotonically increasing, so this data will be ignored. See https://wandb.me/define-metric to log data out of order.
+16:39:18.514 [I] Progress on: 2.61kit/10.0kit rate:1.2s/it remaining:2:31:15 elapsed:12:45 postfix:- (3339673:tqdm_logging.py:145)
+16:39:29.669 [I] Progress on: 2.62kit/10.0kit rate:1.2s/it remaining:2:31:03 elapsed:12:56 postfix:- (3339673:tqdm_logging.py:145)
+16:39:40.842 [I] Progress on: 2.62kit/10.0kit rate:1.2s/it remaining:2:31:08 elapsed:13:07 postfix:- (3339673:tqdm_logging.py:145)
+16:39:52.022 [I] Progress on: 2.63kit/10.0kit rate:1.2s/it remaining:2:32:27 elapsed:13:18 postfix:- (3339673:tqdm_logging.py:145)
+16:40:03.153 [I] Progress on: 2.64kit/10.0kit rate:1.2s/it remaining:2:30:34 elapsed:13:29 postfix:- (3339673:tqdm_logging.py:145)
+16:40:14.138 [I] Progress on: 2.65kit/10.0kit rate:1.4s/it remaining:2:46:29 elapsed:13:40 postfix:- (3339673:tqdm_logging.py:145)
+16:40:24.446 [I] Progress on: 2.66kit/10.0kit rate:1.2s/it remaining:2:32:46 elapsed:13:51 postfix:- (3339673:tqdm_logging.py:145)
+16:40:34.923 [I] Progress on: 2.67kit/10.0kit rate:1.3s/it remaining:2:34:13 elapsed:14:01 postfix:- (3339673:tqdm_logging.py:145)
+16:40:45.313 [I] Progress on: 2.67kit/10.0kit rate:1.3s/it remaining:2:35:32 elapsed:14:12 postfix:- (3339673:tqdm_logging.py:145)
+16:40:56.462 [I] Progress on: 2.68kit/10.0kit rate:1.2s/it remaining:2:30:27 elapsed:14:23 postfix:- (3339673:tqdm_logging.py:145)
+16:41:07.587 [I] Progress on: 2.69kit/10.0kit rate:1.2s/it remaining:2:31:27 elapsed:14:34 postfix:- (3339673:tqdm_logging.py:145)
+16:41:18.810 [I] Progress on: 2.70kit/10.0kit rate:1.3s/it remaining:2:34:31 elapsed:14:45 postfix:- (3339673:tqdm_logging.py:145)
+wandb: WARNING Tried to log to step 2700 that is less than the current step 2901. Steps must be monotonically increasing, so this data will be ignored. See https://wandb.me/define-metric to log data out of order.
+16:41:29.959 [I] Progress on: 2.71kit/10.0kit rate:1.2s/it remaining:2:28:53 elapsed:14:56 postfix:- (3339673:tqdm_logging.py:145)
+16:41:41.102 [I] Progress on: 2.72kit/10.0kit rate:1.3s/it remaining:2:31:49 elapsed:15:07 postfix:- (3339673:tqdm_logging.py:145)
+16:41:52.168 [I] Progress on: 2.73kit/10.0kit rate:1.2s/it remaining:2:28:15 elapsed:15:18 postfix:- (3339673:tqdm_logging.py:145)
+16:42:03.318 [I] Progress on: 2.74kit/10.0kit rate:1.2s/it remaining:2:30:08 elapsed:15:30 postfix:- (3339673:tqdm_logging.py:145)
+16:42:14.412 [I] Progress on: 2.75kit/10.0kit rate:1.2s/it remaining:2:28:35 elapsed:15:41 postfix:- (3339673:tqdm_logging.py:145)
+16:42:25.566 [I] Progress on: 2.75kit/10.0kit rate:1.2s/it remaining:2:30:14 elapsed:15:52 postfix:- (3339673:tqdm_logging.py:145)
+16:42:36.654 [I] Progress on: 2.76kit/10.0kit rate:1.2s/it remaining:2:28:10 elapsed:16:03 postfix:- (3339673:tqdm_logging.py:145)
+16:42:47.732 [I] Progress on: 2.77kit/10.0kit rate:1.2s/it remaining:2:28:19 elapsed:16:14 postfix:- (3339673:tqdm_logging.py:145)
+16:42:58.908 [I] Progress on: 2.78kit/10.0kit rate:1.3s/it remaining:2:31:53 elapsed:16:25 postfix:- (3339673:tqdm_logging.py:145)
+16:43:09.967 [I] Progress on: 2.79kit/10.0kit rate:1.2s/it remaining:2:27:50 elapsed:16:36 postfix:- (3339673:tqdm_logging.py:145)
+16:43:21.123 [I] Progress on: 2.80kit/10.0kit rate:1.3s/it remaining:2:30:32 elapsed:16:47 postfix:- (3339673:tqdm_logging.py:145)
+wandb: WARNING Tried to log to step 2800 that is less than the current step 2901. Steps must be monotonically increasing, so this data will be ignored. See https://wandb.me/define-metric to log data out of order.
+16:43:31.430 [I] Progress on: 2.81kit/10.0kit rate:1.5s/it remaining:3:05:03 elapsed:16:58 postfix:- (3339673:tqdm_logging.py:145)
+16:43:42.420 [I] Progress on: 2.82kit/10.0kit rate:1.2s/it remaining:2:26:45 elapsed:17:09 postfix:- (3339673:tqdm_logging.py:145)
+16:43:53.626 [I] Progress on: 2.83kit/10.0kit rate:1.2s/it remaining:2:28:42 elapsed:17:20 postfix:- (3339673:tqdm_logging.py:145)
+16:44:04.648 [I] Progress on: 2.83kit/10.0kit rate:1.2s/it remaining:2:26:06 elapsed:17:31 postfix:- (3339673:tqdm_logging.py:145)
+16:44:14.666 [I] Progress on: 2.84kit/10.0kit rate:1.3s/it remaining:2:29:55 elapsed:17:41 postfix:- (3339673:tqdm_logging.py:145)
+16:44:25.867 [I] Progress on: 2.85kit/10.0kit rate:1.2s/it remaining:2:28:09 elapsed:17:52 postfix:- (3339673:tqdm_logging.py:145)
+16:44:37.014 [I] Progress on: 2.86kit/10.0kit rate:1.2s/it remaining:2:26:03 elapsed:18:03 postfix:- (3339673:tqdm_logging.py:145)
+16:44:48.081 [I] Progress on: 2.87kit/10.0kit rate:1.2s/it remaining:2:24:42 elapsed:18:14 postfix:- (3339673:tqdm_logging.py:145)
+16:44:58.134 [I] Progress on: 2.88kit/10.0kit rate:1.3s/it remaining:2:30:41 elapsed:18:24 postfix:- (3339673:tqdm_logging.py:145)
+16:45:09.270 [I] Progress on: 2.89kit/10.0kit rate:1.2s/it remaining:2:26:51 elapsed:18:35 postfix:- (3339673:tqdm_logging.py:145)
+16:45:20.502 [I] Progress on: 2.90kit/10.0kit rate:1.3s/it remaining:2:29:08 elapsed:18:47 postfix:- (3339673:tqdm_logging.py:145)
+16:45:30.523 [I] Progress on: 2.90kit/10.0kit rate:1.3s/it remaining:2:28:42 elapsed:18:57 postfix:- (3339673:tqdm_logging.py:145)
+wandb: WARNING Tried to log to step 2900 that is less than the current step 2901. Steps must be monotonically increasing, so this data will be ignored. See https://wandb.me/define-metric to log data out of order.
+16:45:41.619 [I] Progress on: 2.91kit/10.0kit rate:1.2s/it remaining:2:25:23 elapsed:19:08 postfix:- (3339673:tqdm_logging.py:145)
+16:45:52.824 [I] Progress on: 2.92kit/10.0kit rate:1.2s/it remaining:2:24:56 elapsed:19:19 postfix:- (3339673:tqdm_logging.py:145)
+16:46:04.016 [I] Progress on: 2.93kit/10.0kit rate:1.2s/it remaining:2:25:56 elapsed:19:30 postfix:- (3339673:tqdm_logging.py:145)
+16:46:15.234 [I] Progress on: 2.94kit/10.0kit rate:1.2s/it remaining:2:26:23 elapsed:19:41 postfix:- (3339673:tqdm_logging.py:145)
+16:46:26.353 [I] Progress on: 2.95kit/10.0kit rate:1.2s/it remaining:2:25:13 elapsed:19:53 postfix:- (3339673:tqdm_logging.py:145)
+16:46:37.508 [I] Progress on: 2.96kit/10.0kit rate:1.2s/it remaining:2:25:33 elapsed:20:04 postfix:- (3339673:tqdm_logging.py:145)
+16:46:48.600 [I] Progress on: 2.97kit/10.0kit rate:1.2s/it remaining:2:23:44 elapsed:20:15 postfix:- (3339673:tqdm_logging.py:145)
+16:46:59.923 [I] Progress on: 2.97kit/10.0kit rate:1.3s/it remaining:2:31:15 elapsed:20:26 postfix:- (3339673:tqdm_logging.py:145)
+16:47:11.076 [I] Progress on: 2.98kit/10.0kit rate:1.2s/it remaining:2:24:22 elapsed:20:37 postfix:- (3339673:tqdm_logging.py:145)
+16:47:22.296 [I] Progress on: 2.99kit/10.0kit rate:1.3s/it remaining:2:26:03 elapsed:20:49 postfix:- (3339673:tqdm_logging.py:145)
+16:47:33.536 [I] Progress on: 3.00kit/10.0kit rate:1.2s/it remaining:2:24:25 elapsed:21:00 postfix:- (3339673:tqdm_logging.py:145)
+Exception in thread Thread-1 (inner):
+Traceback (most recent call last):
+  File "/sailhome/jrpan/.local/share/uv/python/cpython-3.11.13-linux-x86_64-gnu/lib/python3.11/threading.py", line 1045, in _bootstrap_inner
+    self.run()
+  File "/sailhome/jrpan/.local/share/uv/python/cpython-3.11.13-linux-x86_64-gnu/lib/python3.11/threading.py", line 982, in run
+    self._target(*self._args, **self._kwargs)
+  File "/iris/u/jrpan/openpi/scripts/train.py", line 17, in inner
+    posix.rename(f'{dir_prefix}/memory.prof.new', f'{dir_prefix}/memory.prof')  # atomic
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+FileNotFoundError: [Errno 2] No such file or directory: '/dev/shm/memory.prof.new' -> '/dev/shm/memory.prof'
+16:50:07.896 [I] Progress on: 3.00kit/10.0kit rate:1.2s/it remaining:2:24:25 elapsed:23:34 postfix:- (3339673:tqdm_logging.py:145)
+16:50:07.911 [I] [process=0][thread=MainThread][wait_until_finished] No Save Finalize thread to wait for. Returning. (3339673:checkpoint_manager.py:1987)
+16:50:07.912 [I] [process=0] Saving checkpoint at step 3000                                       (3339673:checkpoint_manager.py:1408)
+16:50:07.914 [I] [process=0] Started async saving checkpoint to /iris/u/jrpan/openpi/checkpoints/pi0_fast_robomemory_low_mem_finetune/lora_10k_0716/3000. (3339673:async_checkpointer.py:439)
+16:50:07.916 [I] Using ThreadSafeKeyValueSignalingClient                                          (3339673:signaling_client.py:332)
+16:50:07.934 [I] Creating tmp directory /iris/u/jrpan/openpi/checkpoints/pi0_fast_robomemory_low_mem_finetune/lora_10k_0716/3000.orbax-checkpoint-tmp-0 (3339673:atomicity.py:144)
+16:50:07.942 [I] Creating tmp directory /iris/u/jrpan/openpi/checkpoints/pi0_fast_robomemory_low_mem_finetune/lora_10k_0716/3000.orbax-checkpoint-tmp-0/assets.orbax-checkpoint-tmp-1 (3339673:atomicity.py:144)
+16:50:07.942 [I] Wrote Metadata={'item_handlers': None, 'metrics': {}, 'performance_metrics': {}, 'init_timestamp_nsecs': 1752709807936388405, 'commit_timestamp_nsecs': None, 'custom_metadata': {}}, json={"item_handlers": null, "metrics": {}, "performance_metrics": {}, "init_timestamp_nsecs": 1752709807936388405, "commit_timestamp_nsecs": null, "custom_metadata": {}} to /iris/u/jrpan/openpi/checkpoints/pi0_fast_robomemory_low_mem_finetune/lora_10k_0716/3000.orbax-checkpoint-tmp-0/_CHECKPOINT_METADATA (3339673:checkpoint.py:186)
+16:50:07.943 [I] Creating tmp directory /iris/u/jrpan/openpi/checkpoints/pi0_fast_robomemory_low_mem_finetune/lora_10k_0716/3000.orbax-checkpoint-tmp-0/params.orbax-checkpoint-tmp-2 (3339673:atomicity.py:144)
+16:50:07.944 [I] Creating tmp directory /iris/u/jrpan/openpi/checkpoints/pi0_fast_robomemory_low_mem_finetune/lora_10k_0716/3000.orbax-checkpoint-tmp-0/train_state.orbax-checkpoint-tmp-3 (3339673:atomicity.py:144)
+16:50:07.973 [I] Transferring arrays to host memory with options: use_replica_parallel=True, enable_pinned_host_transfer=False (3339673:replica_slices.py:341)
+16:50:16.250 [I] Transferring arrays to host memory with options: use_replica_parallel=True, enable_pinned_host_transfer=False (3339673:replica_slices.py:341)
+16:50:16.356 [I] [process=0][thread=array_type_handler] Wrote 42 array_metadata.ArrayMetadata to /iris/u/jrpan/openpi/checkpoints/pi0_fast_robomemory_low_mem_finetune/lora_10k_0716/3000.orbax-checkpoint-tmp-0/params.orbax-checkpoint-tmp-2/array_metadatas/process_0 (3339673:array_metadata_store.py:198)
+16:50:18.434 [I] [process=0] /jax/checkpoint/write/blocking_bytes_per_sec: 615.8 MiB/s (total bytes: 6.3 GiB) (time elapsed: 10 seconds) (per-host) (3339673:base_pytree_checkpoint_handler.py:114)
+16:50:18.449 [I] [process=0] /jax/checkpoint/write/blocking_bytes_per_sec: 321.1 MiB/s (total bytes: 3.3 GiB) (time elapsed: 10 seconds) (per-host) (3339673:base_pytree_checkpoint_handler.py:114)
+16:50:18.464 [I] [process=0][thread=async_save] Background save thread started.                   (3339673:async_checkpointer.py:77)
+16:50:18.465 [I] Finished blocking save in 10.55 seconds. Continuing to save asynchronously to /iris/u/jrpan/openpi/checkpoints/pi0_fast_robomemory_low_mem_finetune/lora_10k_0716/3000. (3339673:async_checkpointer.py:548)
+16:50:18.475 [I] Preserving Checkpoint[step=2000 | time=2025-07-16 22:35:39.214942+00:00]: (Reason: on keep_period=2000). (3339673:checkpoint_manager.py:1949)
+16:50:18.478 [I] [process=0][thread=MainThread][step=3000] Starting CheckpointManager Save Finalize thread=save_finalize (3339673:checkpoint_manager.py:1453)
+16:50:18.482 [I] [process=0][thread=save_finalize] Waiting for background save thread=async_save. (3339673:async_checkpointer.py:258)
+16:50:18.485 [I] {'step': 3000, 'event_type': 'save', 'directory': '/iris/u/jrpan/openpi/checkpoints/pi0_fast_robomemory_low_mem_finetune/lora_10k_0716', 'reached_preemption': False, 'preemption_received_at': None, 'synchronous': False, 'wait_for_prev_start_time': 1752709807.9114587, 'wait_for_prev_duration_secs': 0.0004107952117919922, 'checkpointer_blocking_start_time': 1752709807.9130552, 'checkpointer_blocking_duration_secs': 10.56109356880188, 'get_old_steps_start_time': 1752709818.4741821, 'get_old_steps_duration_secs': 0.004193782806396484, 'checkpoint_manager_blocking_start_time': 1752709807.9108593, 'checkpoint_manager_blocking_duration_secs': 10.573991775512695} (3339673:standard_logger.py:34)
+16:50:18.486 [I] Progress on: 3.00kit/10.0kit rate:50.7s/it remaining:98:37:20 elapsed:23:45 postfix:- (3339673:tqdm_logging.py:145)
+16:50:18.724 [I] [process=0][thread=array_type_handler] Wrote 69 array_metadata.ArrayMetadata to /iris/u/jrpan/openpi/checkpoints/pi0_fast_robomemory_low_mem_finetune/lora_10k_0716/3000.orbax-checkpoint-tmp-0/train_state.orbax-checkpoint-tmp-3/array_metadatas/process_0 (3339673:array_metadata_store.py:198)
+16:50:29.796 [I] Progress on: 3.01kit/10.0kit rate:7.3s/it remaining:14:09:57 elapsed:23:56 postfix:- (3339673:tqdm_logging.py:145)
+16:50:30.296 [I] [process=0] /jax/checkpoint/write/bytes_per_sec: 289.3 MiB/s (total bytes: 6.3 GiB) (time elapsed: 22 seconds) (per-host) (3339673:base_pytree_checkpoint_handler.py:114)
+16:50:30.297 [I] [process=0] /jax/checkpoint/write/bytes_per_sec: 151.0 MiB/s (total bytes: 3.3 GiB) (time elapsed: 22 seconds) (per-host) (3339673:base_pytree_checkpoint_handler.py:114)
+16:50:30.297 [I] [process=0][thread=async_save] 5 Handler Commit operations completed.            (3339673:async_checkpointer.py:87)
+16:50:30.300 [I] Renaming /iris/u/jrpan/openpi/checkpoints/pi0_fast_robomemory_low_mem_finetune/lora_10k_0716/3000.orbax-checkpoint-tmp-0/assets.orbax-checkpoint-tmp-1 to /iris/u/jrpan/openpi/checkpoints/pi0_fast_robomemory_low_mem_finetune/lora_10k_0716/3000.orbax-checkpoint-tmp-0/assets (3339673:atomicity.py:289)
+16:50:30.305 [I] Updated Metadata={'item_handlers': {'assets': 'openpi.training.checkpoints.CallbackHandler', 'params': 'orbax.checkpoint._src.handlers.pytree_checkpoint_handler.PyTreeCheckpointHandler', 'train_state': 'orbax.checkpoint._src.handlers.pytree_checkpoint_handler.PyTreeCheckpointHandler'}, 'metrics': {}, 'performance_metrics': {}, 'init_timestamp_nsecs': 1752709807936388405, 'commit_timestamp_nsecs': None, 'custom_metadata': {}} to /iris/u/jrpan/openpi/checkpoints/pi0_fast_robomemory_low_mem_finetune/lora_10k_0716/3000.orbax-checkpoint-tmp-0/_CHECKPOINT_METADATA (3339673:checkpoint.py:245)
+16:50:30.310 [I] [process=0][thread=async_save] Skipped cross-host ArrayMetadata validation because only one process is found: process_index=0. (3339673:array_metadata_store.py:362)
+16:50:30.349 [I] Renaming /iris/u/jrpan/openpi/checkpoints/pi0_fast_robomemory_low_mem_finetune/lora_10k_0716/3000.orbax-checkpoint-tmp-0/train_state.orbax-checkpoint-tmp-3 to /iris/u/jrpan/openpi/checkpoints/pi0_fast_robomemory_low_mem_finetune/lora_10k_0716/3000.orbax-checkpoint-tmp-0/train_state (3339673:atomicity.py:289)
+16:50:30.357 [I] [process=0][thread=async_save] Skipped cross-host ArrayMetadata validation because only one process is found: process_index=0. (3339673:array_metadata_store.py:362)
+16:50:30.491 [I] Renaming /iris/u/jrpan/openpi/checkpoints/pi0_fast_robomemory_low_mem_finetune/lora_10k_0716/3000.orbax-checkpoint-tmp-0/params.orbax-checkpoint-tmp-2 to /iris/u/jrpan/openpi/checkpoints/pi0_fast_robomemory_low_mem_finetune/lora_10k_0716/3000.orbax-checkpoint-tmp-0/params (3339673:atomicity.py:289)
+16:50:30.493 [I] Renaming /iris/u/jrpan/openpi/checkpoints/pi0_fast_robomemory_low_mem_finetune/lora_10k_0716/3000.orbax-checkpoint-tmp-0 to /iris/u/jrpan/openpi/checkpoints/pi0_fast_robomemory_low_mem_finetune/lora_10k_0716/3000 (3339673:atomicity.py:289)
+16:50:30.500 [I] [process=0][thread=async_save] Finished saving checkpoint (finalized tmp dir) to `/iris/u/jrpan/openpi/checkpoints/pi0_fast_robomemory_low_mem_finetune/lora_10k_0716/3000`. (3339673:atomicity.py:573)
+16:50:30.501 [I] Finished asynchronous save (blocking + background) in 22.59 seconds to /iris/u/jrpan/openpi/checkpoints/pi0_fast_robomemory_low_mem_finetune/lora_10k_0716/3000 (3339673:async_checkpointer.py:412)
+16:50:30.501 [I] [process=0][thread=async_save] Background save thread done.                      (3339673:async_checkpointer.py:143)
+16:50:30.502 [I] [process=0][thread=save_finalize] Done with waiting for background save thread=async_save. (3339673:async_checkpointer.py:266)
+16:50:30.502 [I] [process=0][thread=save_finalize] No errors found in background save thread=async_save. (3339673:async_checkpointer.py:276)
+16:50:30.502 [I] [process=0][thread=save_finalize][step=3000] CheckpointManager Save Finalize is syncing with other hosts... (3339673:checkpoint_manager.py:2095)
+16:50:30.503 [I] [process=0][thread=save_finalize][step=3000] CheckpointManager Save Finalize is done on all hosts. (3339673:checkpoint_manager.py:2110)
+16:50:40.666 [I] Progress on: 3.02kit/10.0kit rate:1.5s/it remaining:2:49:06 elapsed:24:07 postfix:- (3339673:tqdm_logging.py:145)
+16:50:51.635 [I] Progress on: 3.02kit/10.0kit rate:1.2s/it remaining:2:22:23 elapsed:24:18 postfix:- (3339673:tqdm_logging.py:145)
+16:51:02.587 [I] Progress on: 3.03kit/10.0kit rate:1.2s/it remaining:2:21:13 elapsed:24:29 postfix:- (3339673:tqdm_logging.py:145)
+16:51:13.563 [I] Progress on: 3.04kit/10.0kit rate:1.2s/it remaining:2:21:56 elapsed:24:40 postfix:- (3339673:tqdm_logging.py:145)
+16:51:24.516 [I] Progress on: 3.05kit/10.0kit rate:1.2s/it remaining:2:20:20 elapsed:24:51 postfix:- (3339673:tqdm_logging.py:145)
+16:51:35.496 [I] Progress on: 3.06kit/10.0kit rate:1.2s/it remaining:2:20:04 elapsed:25:02 postfix:- (3339673:tqdm_logging.py:145)
+16:51:46.517 [I] Progress on: 3.07kit/10.0kit rate:1.2s/it remaining:2:20:24 elapsed:25:13 postfix:- (3339673:tqdm_logging.py:145)
+16:51:57.520 [I] Progress on: 3.08kit/10.0kit rate:1.2s/it remaining:2:20:54 elapsed:25:24 postfix:- (3339673:tqdm_logging.py:145)
+16:52:08.581 [I] Progress on: 3.09kit/10.0kit rate:1.2s/it remaining:2:22:23 elapsed:25:35 postfix:- (3339673:tqdm_logging.py:145)
+16:52:19.509 [I] Progress on: 3.10kit/10.0kit rate:1.2s/it remaining:2:20:00 elapsed:25:46 postfix:- (3339673:tqdm_logging.py:145)
+16:52:30.790 [I] Progress on: 3.11kit/10.0kit rate:1.3s/it remaining:2:24:20 elapsed:25:57 postfix:- (3339673:tqdm_logging.py:145)
+16:52:41.724 [I] Progress on: 3.12kit/10.0kit rate:1.2s/it remaining:2:19:39 elapsed:26:08 postfix:- (3339673:tqdm_logging.py:145)
+16:52:52.758 [I] Progress on: 3.12kit/10.0kit rate:1.2s/it remaining:2:20:22 elapsed:26:19 postfix:- (3339673:tqdm_logging.py:145)
+16:53:03.966 [I] Progress on: 3.13kit/10.0kit rate:1.3s/it remaining:2:33:08 elapsed:26:30 postfix:- (3339673:tqdm_logging.py:145)

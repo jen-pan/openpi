@@ -1,0 +1,62 @@
+16:23:21.080 [I] Running on: iris-hgx-2.stanford.edu                                              (3337749:train.py:251)
+16:23:24.247 [I] Created BasePyTreeCheckpointHandler: use_ocdbt=True, use_zarr3=False, pytree_metadata_options=PyTreeMetadataOptions(support_rich_types=False), array_metadata_store=<orbax.checkpoint._src.metadata.array_metadata_store.Store object at 0x15327e7e7ed0> (3337749:base_pytree_checkpoint_handler.py:334)
+16:23:24.247 [I] Created BasePyTreeCheckpointHandler: use_ocdbt=True, use_zarr3=False, pytree_metadata_options=PyTreeMetadataOptions(support_rich_types=False), array_metadata_store=<orbax.checkpoint._src.metadata.array_metadata_store.Store object at 0x15327e7e7ed0> (3337749:base_pytree_checkpoint_handler.py:334)
+16:23:24.248 [I] [thread=MainThread] Failed to get flag value for EXPERIMENTAL_ORBAX_USE_DISTRIBUTED_PROCESS_ID. (3337749:multihost.py:390)
+16:23:24.249 [I] [process=0][thread=MainThread] CheckpointManager init: checkpointers=None, item_names=None, item_handlers={'assets': <openpi.training.checkpoints.CallbackHandler object at 0x15317daac450>, 'train_state': <orbax.checkpoint._src.handlers.pytree_checkpoint_handler.PyTreeCheckpointHandler object at 0x15317d85c590>, 'params': <orbax.checkpoint._src.handlers.pytree_checkpoint_handler.PyTreeCheckpointHandler object at 0x15317d85f910>}, handler_registry=None (3337749:checkpoint_manager.py:620)
+16:23:24.250 [I] Deferred registration for item: "assets". Adding handler `<openpi.training.checkpoints.CallbackHandler object at 0x15317daac450>` for item "assets" and save args `<class 'openpi.training.checkpoints.CallbackSave'>` and restore args `<class 'openpi.training.checkpoints.CallbackRestore'>` to `_handler_registry`. (3337749:composite_checkpoint_handler.py:234)
+16:23:24.250 [I] Deferred registration for item: "train_state". Adding handler `<orbax.checkpoint._src.handlers.pytree_checkpoint_handler.PyTreeCheckpointHandler object at 0x15317d85c590>` for item "train_state" and save args `<class 'orbax.checkpoint._src.handlers.pytree_checkpoint_handler.PyTreeSaveArgs'>` and restore args `<class 'orbax.checkpoint._src.handlers.pytree_checkpoint_handler.PyTreeRestoreArgs'>` to `_handler_registry`. (3337749:composite_checkpoint_handler.py:234)
+16:23:24.250 [I] Deferred registration for item: "params". Adding handler `<orbax.checkpoint._src.handlers.pytree_checkpoint_handler.PyTreeCheckpointHandler object at 0x15317d85f910>` for item "params" and save args `<class 'orbax.checkpoint._src.handlers.pytree_checkpoint_handler.PyTreeSaveArgs'>` and restore args `<class 'orbax.checkpoint._src.handlers.pytree_checkpoint_handler.PyTreeRestoreArgs'>` to `_handler_registry`. (3337749:composite_checkpoint_handler.py:234)
+16:23:24.250 [I] Deferred registration for item: "metrics". Adding handler `<orbax.checkpoint._src.handlers.json_checkpoint_handler.JsonCheckpointHandler object at 0x15317d836190>` for item "metrics" and save args `<class 'orbax.checkpoint._src.handlers.json_checkpoint_handler.JsonSaveArgs'>` and restore args `<class 'orbax.checkpoint._src.handlers.json_checkpoint_handler.JsonRestoreArgs'>` to `_handler_registry`. (3337749:composite_checkpoint_handler.py:234)
+16:23:24.250 [I] Initialized registry DefaultCheckpointHandlerRegistry({('assets', <class 'openpi.training.checkpoints.CallbackSave'>): <openpi.training.checkpoints.CallbackHandler object at 0x15317daac450>, ('assets', <class 'openpi.training.checkpoints.CallbackRestore'>): <openpi.training.checkpoints.CallbackHandler object at 0x15317daac450>, ('train_state', <class 'orbax.checkpoint._src.handlers.pytree_checkpoint_handler.PyTreeSaveArgs'>): <orbax.checkpoint._src.handlers.pytree_checkpoint_handler.PyTreeCheckpointHandler object at 0x15317d85c590>, ('train_state', <class 'orbax.checkpoint._src.handlers.pytree_checkpoint_handler.PyTreeRestoreArgs'>): <orbax.checkpoint._src.handlers.pytree_checkpoint_handler.PyTreeCheckpointHandler object at 0x15317d85c590>, ('params', <class 'orbax.checkpoint._src.handlers.pytree_checkpoint_handler.PyTreeSaveArgs'>): <orbax.checkpoint._src.handlers.pytree_checkpoint_handler.PyTreeCheckpointHandler object at 0x15317d85f910>, ('params', <class 'orbax.checkpoint._src.handlers.pytree_checkpoint_handler.PyTreeRestoreArgs'>): <orbax.checkpoint._src.handlers.pytree_checkpoint_handler.PyTreeCheckpointHandler object at 0x15317d85f910>, ('metrics', <class 'orbax.checkpoint._src.handlers.json_checkpoint_handler.JsonSaveArgs'>): <orbax.checkpoint._src.handlers.json_checkpoint_handler.JsonCheckpointHandler object at 0x15317d836190>, ('metrics', <class 'orbax.checkpoint._src.handlers.json_checkpoint_handler.JsonRestoreArgs'>): <orbax.checkpoint._src.handlers.json_checkpoint_handler.JsonCheckpointHandler object at 0x15317d836190>}). (3337749:composite_checkpoint_handler.py:502)
+16:23:24.251 [I] orbax-checkpoint version: 0.11.13                                                (3337749:abstract_checkpointer.py:35)
+16:23:24.251 [I] [process=0][thread=MainThread] Using barrier_sync_fn: <function get_barrier_sync_fn.<locals>.<lambda> at 0x15317d86d9e0> timeout: 7200 secs and primary_host=0 for async checkpoint writes (3337749:async_checkpointer.py:170)
+16:23:24.255 [I] Found 0 checkpoint steps in /iris/u/jrpan/openpi/checkpoints/pi0_fast_robomemory_finetune/full_10k_0716 (3337749:checkpoint_manager.py:1701)
+16:23:24.256 [I] [process=0][thread=MainThread] CheckpointManager created,  primary_host=0, CheckpointManagerOptions=CheckpointManagerOptions(save_interval_steps=1, max_to_keep=1, keep_time_interval=None, keep_period=1000, should_keep_fn=None, best_fn=None, best_mode='max', keep_checkpoints_without_metrics=True, step_prefix=None, step_format_fixed_length=None, step_name_format=None, create=False, cleanup_tmp_directories=False, save_on_steps=frozenset(), single_host_load_and_broadcast=False, todelete_subdir=None, enable_background_delete=False, read_only=False, enable_async_checkpointing=True, async_options=AsyncOptions(timeout_secs=7200, barrier_sync_fn=None, post_finalization_callback=None, create_directories_asynchronously=True), multiprocessing_options=MultiprocessingOptions(primary_host=0, active_processes=None, barrier_sync_key_prefix=None), should_save_fn=None, file_options=FileOptions(path_permission_mode=None), save_root_metadata=True, temporary_path_class=None, save_decision_policy=None, prevent_write_metrics=False), root_directory=/iris/u/jrpan/openpi/checkpoints/pi0_fast_robomemory_finetune/full_10k_0716: <orbax.checkpoint.checkpoint_manager.CheckpointManager object at 0x15317d876290> (3337749:checkpoint_manager.py:801)
+16:23:24.256 [I] Checkpoint directory exists, but does not contain any checkpoints. Aborting resume. (3337749:checkpoints.py:59)
+2025/07/16 16:23:24 ERROR failed to get logger path error="error opening log file: open /sailhome/jrpan/.cache/wandb/logs/core-debug-20250716_162324.log: disk quota exceeded"
+2025/07/16 16:23:24 INFO server is running addr=127.0.0.1:43615
+2025/07/16 16:23:24 INFO Will exit if parent process dies. ppid=3337749
+2025/07/16 16:23:24 INFO connection: ManageConnectionData: new connection created id=127.0.0.1:35764
+wandb: Currently logged in as: jpan00 (robo-memory) to https://api.wandb.ai. Use `wandb login --relogin` to force relogin
+2025/07/16 16:23:24 INFO handleInformInit: received streamId=p08i5am2 id=127.0.0.1:35764
+2025/07/16 16:23:25 INFO handleInformInit: stream started streamId=p08i5am2 id=127.0.0.1:35764
+wandb: Tracking run with wandb version 0.19.11
+wandb: Run data is saved locally in /iris/u/jrpan/openpi/wandb/run-20250716_162324-p08i5am2
+wandb: Run `wandb offline` to turn off syncing.
+wandb: Syncing run full_10k_0716
+wandb: ⭐️ View project at https://wandb.ai/robo-memory/openpi
+wandb: 🚀 View run at https://wandb.ai/robo-memory/openpi/runs/p08i5am2
+Some kwargs in processor config are unused and will not have any effect: min_token, action_dim, time_horizon, scale, vocab_size. 
+Some kwargs in processor config are unused and will not have any effect: min_token, action_dim, time_horizon, scale, vocab_size. 
+16:23:29.782 [I] Loaded norm stats from /iris/u/jrpan/openpi/assets/pi0_fast_robomemory_low_mem_finetune/jennypan00/pi0_fast_ft_droid_lerobot (3337749:config.py:170)
+Some kwargs in processor config are unused and will not have any effect: min_token, action_dim, time_horizon, scale, vocab_size. 
+Some kwargs in processor config are unused and will not have any effect: min_token, action_dim, time_horizon, scale, vocab_size. 
+16:23:34.010 [I] Loaded norm stats from /iris/u/jrpan/openpi/assets/pi0_fast_robomemory_low_mem_finetune/jennypan00/pi0_fast_ft_droid_lerobot (3337749:config.py:170)
+Exception in thread Thread-1 (inner):
+Traceback (most recent call last):
+  File "/sailhome/jrpan/.local/share/uv/python/cpython-3.11.13-linux-x86_64-gnu/lib/python3.11/threading.py", line 1045, in _bootstrap_inner
+    self.run()
+  File "/sailhome/jrpan/.local/share/uv/python/cpython-3.11.13-linux-x86_64-gnu/lib/python3.11/threading.py", line 982, in run
+    self._target(*self._args, **self._kwargs)
+  File "/iris/u/jrpan/openpi/scripts/train.py", line 16, in inner
+    posix.rename(f'{dir_prefix}/memory.prof.new', f'{dir_prefix}/memory.prof')  # atomic
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+FileNotFoundError: [Errno 2] No such file or directory: '/dev/shm/memory.prof.new' -> '/dev/shm/memory.prof'
+16:24:19.163 [I] Initialized data loader:
+[0].images['base_0_rgb']: (128, 224, 224, 3)@float32
+[0].images['base_1_rgb']: (128, 224, 224, 3)@float32
+[0].images['wrist_0_rgb']: (128, 224, 224, 3)@float32
+[0].image_masks['base_0_rgb']: (128,)@bool
+[0].image_masks['base_1_rgb']: (128,)@bool
+[0].image_masks['wrist_0_rgb']: (128,)@bool
+[0].state: (128, 8)@float32
+[0].tokenized_prompt: (128, 180)@int32
+[0].tokenized_prompt_mask: (128, 180)@bool
+[0].token_ar_mask: (128, 180)@int32
+[0].token_loss_mask: (128, 180)@bool
+[1]: (128, 10, 8)@float32 (3337749:train.py:292)
+16:24:21.245 [I] Created BasePyTreeCheckpointHandler: use_ocdbt=True, use_zarr3=False, pytree_metadata_options=PyTreeMetadataOptions(support_rich_types=False), array_metadata_store=<orbax.checkpoint._src.metadata.array_metadata_store.Store object at 0x15327e7e7ed0> (3337749:base_pytree_checkpoint_handler.py:334)
+16:24:21.272 [I] Restoring checkpoint from /iris/u/jrpan/openpi/openpi-assets/checkpoints/pi0_fast_droid/params. (3337749:checkpointer.py:298)
+16:24:29.215 [I] [process=0] /jax/checkpoint/read/bytes_per_sec: 1.4 GiB/s (total bytes: 10.9 GiB) (time elapsed: 7 seconds) (per-host) (3337749:base_pytree_checkpoint_handler.py:114)
+16:24:29.215 [I] Finished restoring checkpoint in 7.94 seconds from /iris/u/jrpan/openpi/openpi-assets/checkpoints/pi0_fast_droid/params. (3337749:checkpointer.py:309)
+slurmstepd: error: *** JOB 10611859 ON iris-hgx-2 CANCELLED AT 2025-07-16T16:24:35 ***
