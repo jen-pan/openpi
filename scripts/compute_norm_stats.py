@@ -102,7 +102,8 @@ def main(config_name: str, max_frames: int | None = None):
 
     for batch in tqdm.tqdm(data_loader, total=num_batches, desc="Computing stats"):
         for key in keys:
-            values = np.asarray(batch[key][0])
+            values = np.asarray(batch[key]) #TODO: took out [0] because not sharding across devices, put it back in if so. it samples one slice across a minibatch that corresponds to one process. 
+            print("----------values----------", values.shape)
             stats[key].update(values.reshape(-1, values.shape[-1]))
 
     norm_stats = {key: stats.get_statistics() for key, stats in stats.items()}

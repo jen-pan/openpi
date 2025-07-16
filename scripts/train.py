@@ -5,8 +5,25 @@ import platform
 from typing import Any
 import os, logging
 
+def initialise_tracking(interval: float=1., dir_prefix: str='/dev/shm') -> None:
+    import jax
+    import threading
+
+    def inner():
+        import posix
+        import time
+        while True:
+            jax.profiler.save_device_memory_profile(f'{dir_prefix}/memory.prof.new')
+            posix.rename(f'{dir_prefix}/memory.prof.new', f'{dir_prefix}/memory.prof')  # atomic
+            time.sleep(interval)
+
+    thread = threading.Thread(target=inner, daemon=True)
+    thread.start()
+initialise_tracking()
+
 os.environ["TF_CPP_MIN_LOG_LEVEL"] = "3"          # hush XLA/TF INFO
 logging.getLogger("jax").setLevel(logging.ERROR) 
+
 # Use a user-specific directory in /tmp for JAX's persistent compilation cache.
 # This avoids permission or quota issues that can arise if multiple users share
 # the same machine or if the default ~/.cache path is quota-restricted.
@@ -16,12 +33,8 @@ os.makedirs(cache_dir, exist_ok=True)
 # Expose it both to JAX via the env-var *before* importing JAX, and later via
 # jax.config.update.
 os.environ["JAX_COMPILATION_CACHE_DIR"] = cache_dir
-# Make it available module-wide so we can reference it later from `main()`.
 CACHE_DIR = cache_dir
-import etils.epath as epath
-import flax.nnx as nnx
-from flax.training import common_utils
-import flax.traverse_util as traverse_util
+
 
 import jax
 import jax.experimental
@@ -30,6 +43,11 @@ import numpy as np
 import optax
 import tqdm_loggable.auto as tqdm
 import wandb
+
+import etils.epath as epath
+import flax.nnx as nnx
+from flax.training import common_utils
+import flax.traverse_util as traverse_util
 
 import openpi.models.model as _model
 import openpi.shared.array_typing as at
@@ -232,16 +250,16 @@ def eval_step(
 def main(config: _config.TrainConfig):
     init_logging()
     logging.info(f"Running on: {platform.node()}")
-    print("------CONFIG------", config)
+    print("------TRAIN CONFIG------", config)
     print("------device_count------", jax.device_count())
     if config.batch_size % jax.device_count() != 0:
         raise ValueError(
             f"Batch size {config.batch_size} must be divisible by the number of devices {jax.device_count()}."
         )
+    print("------per_device_batch_size------", config.batch_size // jax.device_count())
     # Ensure JAX itself sees the same cache directory (needed when this script
     # is imported rather than executed directly).
     jax.config.update("jax_compilation_cache_dir", CACHE_DIR)
-    print("------seed------", config.seed)      
     rng = jax.random.key(config.seed)
     train_rng, init_rng = jax.random.split(rng)
 
@@ -325,8 +343,7 @@ def main(config: _config.TrainConfig):
             infos = []
         batch = next(data_iter)
 
-        # Evaluation loop every 500 steps over the entire evaluation dataset
-        if step % 1000 == 0 and step != start_step:  # TODO: expose 500 as a config field
+        if step % 1000 == 0 and step != start_step:  # TODO: expose 1000 as a config field
             eval_infos = []
 
             # Determine how many batches constitute one full pass.
