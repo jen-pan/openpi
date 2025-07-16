@@ -20,6 +20,7 @@ import openpi.models.tokenizer as _tokenizer
 import openpi.policies.aloha_policy as aloha_policy
 import openpi.policies.droid_policy as droid_policy
 import openpi.policies.libero_policy as libero_policy
+import openpi.policies.robomemory_policy as robomemory_policy
 import openpi.shared.download as _download
 import openpi.shared.normalize as _normalize
 import openpi.training.droid_rlds_dataset as droid_rlds_dataset
@@ -323,6 +324,80 @@ class LeRobotLiberoDataConfig(DataConfigFactory):
             repack_transforms=repack_transform,
             data_transforms=data_transforms,
             model_transforms=model_transforms,
+        )
+
+@dataclasses.dataclass(frozen=True)
+class LeRobotRoboMemoryDataConfig(DataConfigFactory):
+    """
+    This config is used to configure transforms that are applied at various parts of the data pipeline.
+    For your own dataset, you can copy this class and modify the transforms to match your dataset based on the
+    comments below.
+    """
+
+    @override
+    def create(self, assets_dirs: pathlib.Path, model_config: _model.BaseModelConfig) -> DataConfig:
+        # The repack transform is *only* applied to the data coming from the dataset,
+        # and *not* during inference. We can use it to make inputs from the dataset look
+        # as close as possible to those coming from the inference environment (e.g. match the keys).
+        # Below, we match the keys in the dataset (which we defined in the data conversion script) to
+        # the keys we use in our inference pipeline (defined in the inference script for libero).
+        # For your own dataset, first figure out what keys your environment passes to the policy server
+        # and then modify the mappings below so your dataset's keys get matched to those target keys.
+        # The repack transform simply remaps key names here.
+        repack_transform = _transforms.Group(
+            inputs=[
+                _transforms.RepackTransform(
+                    {
+                        "observation/exterior_image_1_left": "observation/exterior_image_1_left",
+                        "observation/wrist_image_left": "observation/wrist_image_left",
+                        "observation/joint_position": "observation/joint_position",
+                        "observation/gripper_position": "observation/gripper_position",
+                        "actions": "actions",
+                        "prompt": "prompt",
+                    }
+                )
+            ]
+        )
+
+        # The data transforms are applied to the data coming from the dataset *and* during inference.
+        # Below, we define the transforms for data going into the model (``inputs``) and the transforms
+        # for data coming out of the model (``outputs``) (the latter is only used during inference).
+        # We defined these transforms in `libero_policy.py`. You can check the detailed comments there for
+        # how to modify the transforms to match your dataset. Once you created your own transforms, you can
+        # replace the transforms below with your own.
+        data_transforms = _transforms.Group(
+            inputs=[robomemory_policy.RoboMemoryInputs(action_dim=model_config.action_dim, model_type=model_config.model_type)],
+            outputs=[robomemory_policy.RoboMemoryOutputs()],
+        )
+
+        # One additional data transform: pi0 models are trained on delta actions (relative to the first
+        # state in each action chunk). IF your data has ``absolute`` actions (e.g. target joint angles)
+        # you can uncomment the following line to convert the actions to delta actions. The only exception
+        # is for the gripper actions which are always absolute.
+        # In the example below, we would apply the delta conversion to the first 6 actions (joints) and
+        # leave the 7th action (gripper) unchanged, i.e. absolute.
+        # In Libero, the raw actions in the dataset are already delta actions, so we *do not* need to
+        # apply a separate delta conversion (that's why it's commented out). Choose whether to apply this
+        # transform based on whether your dataset uses ``absolute`` or ``delta`` actions out of the box.
+
+        # TODO: check this
+        delta_action_mask = _transforms.make_bool_mask(7, -1)
+        data_transforms = data_transforms.push(
+            inputs=[_transforms.DeltaActions(delta_action_mask)],
+            outputs=[_transforms.AbsoluteActions(delta_action_mask)],
+        )
+
+        # Model transforms include things like tokenizing the prompt and action targets
+        # You do not need to change anything here for your own dataset.
+        model_transforms = ModelTransformFactory()(model_config)
+
+        # We return all data transforms for training and inference. No need to change anything here.
+        return dataclasses.replace(
+            self.create_base_config(assets_dirs),
+            # repack_transforms=repack_transform,
+            data_transforms=data_transforms,
+            model_transforms=model_transforms,
+            use_quantile_norm=model_config.model_type == ModelType.PI0_FAST, # TODO: check this
         )
 
 
@@ -689,6 +764,42 @@ _CONFIGS = [
         save_interval=5000,
         keep_period=20_000,
         num_workers=0,  # Important: RLDS DataLoader requires num_workers=0, handles multi-processing internally
+    ),
+    TrainConfig(
+        name="pi0_fast_robomemory_low_mem_finetune",
+        model=pi0_fast.Pi0FASTConfig(
+            action_dim=8, action_horizon=10, max_token_len=180, paligemma_variant="gemma_2b_lora"
+        ),
+        data=LeRobotRoboMemoryDataConfig(
+            repo_id="jennypan00/pi0_fast_ft_droid_lerobot",
+            base_config=DataConfig(prompt_from_task=True),
+            assets=AssetsConfig( # TODO: check this
+                assets_dir="/iris/u/jrpan/openpi/assets",
+                asset_id="pi0_fast_robomemory_low_mem_finetune/jennypan00/pi0_fast_ft_droid_lerobot",
+            ),
+        ),
+        weight_loader=weight_loaders.CheckpointWeightLoader("gs://openpi-assets/checkpoints/pi0_fast_droid/params"),
+        num_train_steps=10_000,
+        freeze_filter=pi0_fast.Pi0FASTConfig(
+            action_dim=8, action_horizon=10, max_token_len=180, paligemma_variant="gemma_2b_lora"
+        ).get_freeze_filter(),
+        ema_decay=None,
+    ),
+    TrainConfig(
+        name="pi0_fast_robomemory_finetune",
+        model=pi0_fast.Pi0FASTConfig(
+            action_dim=8, action_horizon=10, max_token_len=180
+        ),
+        data=LeRobotRoboMemoryDataConfig(
+            repo_id="jennypan00/pi0_fast_ft_droid_lerobot",
+            base_config=DataConfig(prompt_from_task=True),
+            assets=AssetsConfig( # TODO: check this
+                assets_dir= "/iris/u/jrpan/openpi/assets", # TODO: check "gs://openpi-assets/checkpoints/pi0_fast_base/assets",
+                asset_id="pi0_fast_robomemory_finetune/jennypan00/pi0_fast_ft_droid_lerobot",
+            ),
+        ),
+        weight_loader=weight_loaders.CheckpointWeightLoader("gs://openpi-assets/checkpoints/pi0_fast_droid/params"),
+        num_train_steps=30_000,
     ),
     #
     # ALOHA Sim configs. This config is used to demonstrate how to train on a simple simulated environment.
