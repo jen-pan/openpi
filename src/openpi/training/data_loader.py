@@ -131,18 +131,18 @@ def create_torch_dataset(
 ) -> Dataset:
     """Create a dataset for training."""
     if is_eval:
-        repo_id = data_config.repo_id + "_test"
-        print("=========USING EVAL REPO ID", repo_id)
+        repo_id = data_config.repo_id.replace("_train", "_test")
+        print("------CREATING EVAL DATASET------", repo_id)
     else:
         repo_id = data_config.repo_id
-        print("=========USING TRAIN REPO ID", repo_id)
+        print("------CREATING TRAIN DATASET------", repo_id)
     if repo_id is None:
         raise ValueError("Repo ID is not set. Cannot create dataset.")
     if repo_id == "fake":
         return FakeDataset(model_config, num_samples=1024)
 
     dataset_meta = lerobot_dataset.LeRobotDatasetMetadata(repo_id)
-    print("DATASET META", dataset_meta)
+    print("------DATASET META------", dataset_meta)
     dataset = lerobot_dataset.LeRobotDataset(
         data_config.repo_id,
         delta_timestamps={
@@ -234,7 +234,7 @@ def create_data_loader(
 ) -> DataLoader[tuple[_model.Observation, _model.Actions]]:
     """Create a data loader for training."""
     data_config = config.data.create(config.assets_dirs, config.model)
-    print("DATA CONFIG", data_config)
+    print("------create_data_loader CONFIG------", data_config)
     if data_config.rlds_data_dir is not None:
         return create_rlds_data_loader(
             data_config,
@@ -293,7 +293,7 @@ def create_torch_data_loader(
     """
     dataset = create_torch_dataset(data_config, action_horizon, model_config, is_eval=is_eval)
     dataset = transform_dataset(dataset, data_config, skip_norm_stats=skip_norm_stats)
-    print("===========NUM BATCHES", num_batches)
+    print("------NUM BATCHES------", num_batches)
     data_loader = TorchDataLoader(
         dataset,
         local_batch_size=batch_size // jax.process_count(),
