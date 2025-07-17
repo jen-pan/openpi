@@ -4,10 +4,38 @@ import logging
 import platform
 from typing import Any
 
-import etils.epath as epath
-import flax.nnx as nnx
-from flax.training import common_utils
-import flax.traverse_util as traverse_util
+import os, logging
+
+def initialise_tracking(interval: float=1., dir_prefix: str='/dev/shm') -> None:
+    import jax
+    import threading
+
+    def inner():
+        import posix
+        import time
+        while True:
+            jax.profiler.save_device_memory_profile(f'{dir_prefix}/memory.prof.new')
+            posix.rename(f'{dir_prefix}/memory.prof.new', f'{dir_prefix}/memory.prof')  # atomic
+            time.sleep(interval)
+
+    thread = threading.Thread(target=inner, daemon=True)
+    thread.start()
+initialise_tracking()
+
+os.environ["TF_CPP_MIN_LOG_LEVEL"] = "3"          # hush XLA/TF INFO
+logging.getLogger("jax").setLevel(logging.ERROR) 
+
+# Use a user-specific directory in /tmp for JAX's persistent compilation cache.
+# This avoids permission or quota issues that can arise if multiple users share
+# the same machine or if the default ~/.cache path is quota-restricted.
+cache_dir = f"/tmp/jax_cache_jrpan"
+# Ensure the directory exists and is writable.
+os.makedirs(cache_dir, exist_ok=True)
+# Expose it both to JAX via the env-var *before* importing JAX, and later via
+# jax.config.update.
+os.environ["JAX_COMPILATION_CACHE_DIR"] = cache_dir
+CACHE_DIR = cache_dir
+
 import jax
 import jax.experimental
 import jax.numpy as jnp
@@ -15,6 +43,11 @@ import numpy as np
 import optax
 import tqdm_loggable.auto as tqdm
 import wandb
+
+import etils.epath as epath
+import flax.nnx as nnx
+from flax.training import common_utils
+import flax.traverse_util as traverse_util
 
 import openpi.models.model as _model
 import openpi.shared.array_typing as at
@@ -190,17 +223,40 @@ def train_step(
     }
     return new_state, info
 
+@at.typecheck
+def eval_step(
+    config: _config.TrainConfig,
+    rng: at.KeyArrayLike,
+    state: training_utils.TrainState,
+    batch: tuple[_model.Observation, _model.Actions],
+) -> dict[str, at.Array]:
+    """Run a forward pass without gradient updates and return metrics."""
+    # Use EMA parameters for evaluation if available.
+    model_params = state.ema_params if state.ema_params is not None else state.params
+    model = nnx.merge(state.model_def, model_params)
+
+    @at.typecheck
+    def loss_fn(model: _model.BaseModel, rng: at.KeyArrayLike, observation: _model.Observation, actions: _model.Actions):
+        chunked_loss = model.compute_loss(rng, observation, actions, train=False)
+        return jnp.mean(chunked_loss)
+
+    observation, actions = batch
+    loss = loss_fn(model, rng, observation, actions)
+
+    return {"eval/loss": loss}
+
 
 def main(config: _config.TrainConfig):
     init_logging()
     logging.info(f"Running on: {platform.node()}")
-
+    print("------TRAIN CONFIG------", config)
+    print("------device_count------", jax.device_count())
     if config.batch_size % jax.device_count() != 0:
         raise ValueError(
             f"Batch size {config.batch_size} must be divisible by the number of devices {jax.device_count()}."
         )
-
-    jax.config.update("jax_compilation_cache_dir", str(epath.Path("~/.cache/jax").expanduser()))
+    print("------per_device_batch_size------", config.batch_size // jax.device_count())
+    jax.config.update("jax_compilation_cache_dir", CACHE_DIR)
 
     rng = jax.random.key(config.seed)
     train_rng, init_rng = jax.random.split(rng)
@@ -222,7 +278,14 @@ def main(config: _config.TrainConfig):
         sharding=data_sharding,
         shuffle=True,
     )
+    eval_loader = _data_loader.create_data_loader(
+        config,
+        sharding=data_sharding,
+        shuffle=False,
+        is_eval=True,
+    )
     data_iter = iter(data_loader)
+    eval_iter = iter(eval_loader)
     batch = next(data_iter)
     logging.info(f"Initialized data loader:\n{training_utils.array_tree_to_info(batch)}")
 
@@ -246,7 +309,13 @@ def main(config: _config.TrainConfig):
         out_shardings=(train_state_sharding, replicated_sharding),
         donate_argnums=(1,),
     )
+    peval_step = jax.jit(
+        functools.partial(eval_step, config),
+        in_shardings=(replicated_sharding, train_state_sharding, data_sharding),
+        out_shardings=replicated_sharding,
+    )
 
+    eval_rng = jax.random.key(config.seed + 1)
     start_step = int(train_state.step)
     pbar = tqdm.tqdm(
         range(start_step, config.num_train_steps),
@@ -268,6 +337,28 @@ def main(config: _config.TrainConfig):
             wandb.log(reduced_info, step=step)
             infos = []
         batch = next(data_iter)
+
+        if step % 1000 == 0 and step != start_step:  # TODO: expose 1000 as a config field
+            eval_infos = []
+
+            # Determine how many batches constitute one full pass.
+            num_eval_batches: int | None = None
+            num_eval_batches = len(eval_loader._data_loader.torch_loader)  # type: ignore[attr-defined]
+            batch_idx = 0
+            while True:
+                if num_eval_batches is not None and batch_idx >= num_eval_batches:
+                    break
+                e_batch = next(eval_iter)
+
+                eval_info = peval_step(eval_rng, train_state, e_batch)
+                eval_infos.append(eval_info)
+                batch_idx += 1
+
+            stacked_eval = common_utils.stack_forest(eval_infos)
+            reduced_eval = jax.device_get(jax.tree.map(jnp.mean, stacked_eval))
+            info_str = ", ".join(f"{k}={v:.4f}" for k, v in reduced_eval.items())
+            pbar.write(f"[EVAL] Step {step}: {info_str}")
+            wandb.log(reduced_eval, step=step)
 
         if (step % config.save_interval == 0 and step > start_step) or step == config.num_train_steps - 1:
             _checkpoints.save_state(checkpoint_manager, train_state, data_loader, step)
