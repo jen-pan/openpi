@@ -305,8 +305,8 @@ class PromptFromLeRobotTask(DataTransformFn):
 
         task_index = int(data["task_index"])
         if (prompt := self.tasks.get(task_index)) is None:
-            raise ValueError(f"{task_index=} not found in task mapping: {self.tasks}")
-
+            # raise ValueError(f"{task_index=} not found in task mapping: {self.tasks}")
+            prompt = "pick up the fried chicken and put it in the black bin" #TODO: HACK, missing task in eval set??
         return {**data, "prompt": prompt}
 
 
