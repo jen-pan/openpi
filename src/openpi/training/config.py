@@ -20,6 +20,7 @@ import openpi.models.tokenizer as _tokenizer
 import openpi.policies.aloha_policy as aloha_policy
 import openpi.policies.droid_policy as droid_policy
 import openpi.policies.libero_policy as libero_policy
+import openpi.policies.robomemory_policy as robomemory_policy
 import openpi.shared.download as _download
 import openpi.shared.normalize as _normalize
 import openpi.training.droid_rlds_dataset as droid_rlds_dataset
@@ -434,6 +435,44 @@ class LeRobotDROIDDataConfig(DataConfigFactory):
             model_transforms=model_transforms,
         )
 
+@dataclasses.dataclass(frozen=True)
+class LeRobotRoboMemoryDataConfig(DataConfigFactory):
+    """
+    This config is used to configure transforms that are applied at various parts of the data pipeline.
+    For your own dataset, you can copy this class and modify the transforms to match your dataset based on the
+    comments below.
+    """
+
+    @override
+    def create(self, assets_dirs: pathlib.Path, model_config: _model.BaseModelConfig) -> DataConfig:
+        repack_transform = _transforms.Group(
+            inputs=[
+                _transforms.RepackTransform(
+                    {
+                        "observation/exterior_image_1_left": "observation/exterior_image_1_left",
+                        "observation/wrist_image_left": "observation/wrist_image_left",
+                        "observation/joint_position": "observation/joint_position",
+                        "observation/gripper_position": "observation/gripper_position",
+                        "actions": "actions",
+                        "prompt": "prompt",
+                    }
+                )
+            ]
+        )
+
+        data_transforms = _transforms.Group(
+            inputs=[robomemory_policy.RoboMemoryInputs(model_type=model_config.model_type)],
+            outputs=[robomemory_policy.RoboMemoryOutputs()],
+        )
+
+        model_transforms = ModelTransformFactory()(model_config)
+
+        return dataclasses.replace(
+            self.create_base_config(assets_dirs, model_config),
+            # repack_transforms=repack_transform,
+            data_transforms=data_transforms,
+            model_transforms=model_transforms,
+        )
 
 @dataclasses.dataclass(frozen=True)
 class TrainConfig:
@@ -846,6 +885,49 @@ _CONFIGS = [
                 # Important: reuse the original DROID norm stats during fine-tuning!
                 assets_dir="gs://openpi-assets-preview/checkpoints/pi05_droid/assets",
                 asset_id="droid",
+            ),
+        ),
+        weight_loader=weight_loaders.CheckpointWeightLoader("gs://openpi-assets-preview/checkpoints/pi05_droid/params"),
+        num_train_steps=20_000,
+        batch_size=32,
+    ),
+    TrainConfig(
+        name="pi05_robomemory_low_mem_finetune",
+        model=pi0.Pi0Config(
+            pi05=True,
+            action_dim=32, 
+            action_horizon=16, 
+            paligemma_variant="gemma_2b_lora"
+            # max_token_len=180,
+        ),
+        data=LeRobotRoboMemoryDataConfig(
+            repo_id="jennypan00/pi0_fast_ft_droid_lerobot_train",
+            base_config=DataConfig(prompt_from_task=True),
+            assets=AssetsConfig(
+                assets_dir="gs://openpi-assets-preview/checkpoints/pi05_droid/assets",
+                asset_id="droid"
+            ),
+        ),
+        weight_loader=weight_loaders.CheckpointWeightLoader("gs://openpi-assets-preview/checkpoints/pi05_droid/params"),
+        num_train_steps=20_000,
+        batch_size=32,
+        freeze_filter=pi0.Pi0Config(
+            pi05=True, action_dim=32, action_horizon=16, paligemma_variant="gemma_2b_lora"
+        ).get_freeze_filter(),
+        ema_decay=None,
+    ),  
+    TrainConfig(
+        name="pi05_robomemory_finetune",
+        model=pi0.Pi0Config(
+            pi05=True, action_dim=32, action_horizon=16
+            # max_token_len=180,
+        ),
+        data=LeRobotRoboMemoryDataConfig(
+            repo_id="jennypan00/pi0_fast_ft_droid_lerobot_train",
+            base_config=DataConfig(prompt_from_task=True),
+            assets=AssetsConfig( 
+                assets_dir= "gs://openpi-assets-preview/checkpoints/pi05_droid/assets",
+                asset_id="droid"
             ),
         ),
         weight_loader=weight_loaders.CheckpointWeightLoader("gs://openpi-assets-preview/checkpoints/pi05_droid/params"),
