@@ -170,4 +170,3 @@ cython_debug/
 # SLURM job output files
 *.out
 *.err
-slurm_jobs/
