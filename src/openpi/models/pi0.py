@@ -20,23 +20,32 @@ logger = logging.getLogger("openpi")
 def make_attn_mask(input_mask, mask_ar):
     """Adapted from big_vision.
 
-    Tokens can attend to valid inputs tokens which have a cumulative mask_ar
-    smaller or equal to theirs. This way `mask_ar` bool[?B, N] can be used to
-    setup several types of attention, for example:
-
-      [[1 1 1 1 1 1]]: pure causal attention.
-
-      [[0 0 0 1 1 1]]: prefix-lm attention. The first 3 tokens can attend between
-          themselves and the last 3 tokens have a causal attention. The first
-          entry could also be a 1 without changing behaviour.
-
-      [[1 0 1 0 1 0 0 1 0 0]]: causal attention between 4 blocks. Tokens of a
-          block can attend all previous blocks and all tokens on the same block.
-
     Args:
       input_mask: bool[B, N] true if its part of the input, false if padding.
       mask_ar: bool[?B, N] mask that's true where previous tokens cannot depend on
         it and false where it shares the same attention mask as the previous token.
+        marks boundaries between autoregressive groups (block attn), where 1 starts 
+        a new block, 0 continues the current block.
+
+    This function computes per-position block_ids which is the cumsum(mask_ar) along the sequence. A query at position i can attend to a key at position j if block_ids[j] <= block_ids[i], which means that each token can see all tokens in earlier blocks and its own block, but never future blocks. within a block (same block_id), attention is bidirectional. 
+    Lastly, AND with valid_mask so only non-padding tokens can attend to each other.
+
+    Tokens can attend to valid inputs tokens which have a cumulative mask_ar
+    smaller or equal to theirs. This way `mask_ar` bool[?B, N] can be used to
+    setup several types of attention, for example:
+
+      [[1 1 1 1 1 1]]: pure causal attention
+        cumsum(mask_ar) = [1 2 3 4 5 6], so row i can attend to col j if j <= i, which is 
+        a lower-triangular mask
+
+      [[0 0 0 1 1 1]]: prefix-lm attention
+        cumsum(mask_ar) = [0 0 0 1 2 3], so first 3 tokens in block 0 and can attend to each 
+        other bidirectionally. token 3 is block 1 and can attend to all tokens in block <= 1, so
+        the 3-token prefix + itself. token 4 is block 2 and can attend to prefix + tokens up to 4, etc. we have a fully-visible prefix followed by standard causal decoding.
+      
+      [[1 0 1 0 1 0 0 1 0 0]]: causal attention between 4 blocks
+          cumsum(mask_ar) = [1 1 2 2 3 3 3 4 4 4]. Tokens of a block can attend all previous blocks and all tokens on the same block.
+
     """
     mask_ar = jnp.broadcast_to(mask_ar, input_mask.shape)
     cumsum = jnp.cumsum(mask_ar, axis=1)
@@ -241,11 +250,11 @@ class Pi0(_model.BaseModel):
         ar_mask = []
         tokens = []
         if not self.pi05:
-            # add a single state token
+            # add a single state token as first token of the suffix, before the action tokens
             state_token = self.state_proj(obs.state)[:, None, :]
             tokens.append(state_token)
             input_mask.append(jnp.ones((obs.state.shape[0], 1), dtype=jnp.bool_))
-            # image/language inputs do not attend to state or actions
+            # start a new block for state tokens, so image/language inputs do not attend to state or actions
             ar_mask += [True]
 
         action_tokens = self.action_in_proj(noisy_actions)
@@ -367,3 +376,49 @@ class Pi0(_model.BaseModel):
 
         x_0, _ = jax.lax.while_loop(cond, step, (noise, 1.0))
         return x_0
+
+    @at.typecheck
+    def compute_subtask_loss(
+        self,
+        rng: at.KeyArrayLike,
+        observation: _model.Observation,
+        *,
+        train: bool = False,
+    ) -> at.Float[at.Array, "*b"]:
+        # creates image augmentations and sets up image masking (default is all images are attended to) 
+        observation = _model.preprocess_observation(rng, observation, train=train)
+
+        # embed obs.images (keyframes + recent frames) and obs.tokenized_prompt (QA prompt) using PaliGemma tokenizer
+        # prefix_mask masks out invalid images and padding text tokens
+        # prefix_ar_mask is all zeros, so prefix is fully visible internally
+        prefix_tokens, prefix_mask, prefix_ar_mask = self.embed_prefix(observation)
+
+        # Prepare subtask target tokens
+        if observation.subtask_target is None or observation.subtask_target_mask is None:
+            raise ValueError("subtask_target and subtask_target_mask are required for subtask loss")
+        target_emb = self.PaliGemma.llm(observation.subtask_target, method="embed")
+        in_emb = target_emb[:, :-1]
+        target_tok = observation.subtask_target[:, 1:]
+        # ensure loss is only computed on meaningful tokens, not padding #TODO set up subtask_target_mask
+        target_mask = observation.subtask_target_mask[:, 1:]
+
+        # prefix fully visible (zeros), subtask target causal (ones)
+        target_len = in_emb.shape[1]
+        zeros = jnp.zeros(prefix_mask.shape[1], dtype=jnp.int32)
+        ones = jnp.ones(target_len, dtype=jnp.int32)
+        ar_mask = jnp.concatenate([zeros, ones], axis=0)
+
+        input_mask = jnp.concatenate([prefix_mask, target_mask], axis=1)
+        embedded = jnp.concatenate([prefix_tokens, in_emb], axis=1)
+        attn_mask = make_attn_mask(input_mask, ar_mask)
+        positions = jnp.cumsum(input_mask, axis=1) - 1
+
+        # forward only through Paligemma expert
+        (lang_out, _), _ = self.PaliGemma.llm([embedded, None], mask=attn_mask, positions=positions, adarms_cond=None)
+        subtask_prediction = lang_out[:, -target_len:]
+        logits = self.PaliGemma.llm.module.embedder.decode(subtask_prediction.astype(jnp.float32))
+        logp = jax.nn.log_softmax(logits, axis=-1)
+
+        token_logp = jnp.take_along_axis(logp, target_tok[..., None], axis=-1)[..., 0]
+        ce_loss = -jnp.sum(token_logp * target_mask, axis=-1) / jnp.clip(jnp.sum(target_mask, axis=-1), 1)
+        return ce_loss
