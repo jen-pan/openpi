@@ -265,6 +265,30 @@ class TokenizePrompt(DataTransformFn):
         tokens, token_masks = self.tokenizer.tokenize(prompt, state)
         return {**data, "tokenized_prompt": tokens, "tokenized_prompt_mask": token_masks}
 
+@dataclasses.dataclass(frozen=True)
+class TokenizeSubtask(DataTransformFn):
+    tokenizer: _tokenizer.PaligemmaTokenizer
+    # no state in subtask prediction task
+    discrete_state_input: bool = False
+
+    def __call__(self, data: DataDict) -> DataDict:
+        # "prompt" for subtask context, "subtask_target" for predicted command
+        if (prompt := data.pop("prompt", None)) is None:
+            raise ValueError("Prompt is required")
+
+        if (target := data.pop("subtask_target", None)) is None:
+            raise ValueError("subtask_target is required for subtask tokenization")
+
+        assert data.get("state") is None, "state is not allowed in subtask prediction task"
+
+        if not isinstance(prompt, str):
+            prompt = prompt.item()
+        if not isinstance(target, str):
+            target = target.item()
+
+        tokens, token_masks = self.tokenizer.tokenize(prompt, None)
+        target_tokens, target_masks = self.tokenizer.tokenize(target, None)
+        return {**data, "tokenized_prompt": tokens, "tokenized_prompt_mask": token_masks, "subtask_target": target_tokens, "subtask_target_mask": target_masks}
 
 @dataclasses.dataclass(frozen=True)
 class TokenizeFASTInputs(DataTransformFn):
