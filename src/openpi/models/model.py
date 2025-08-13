@@ -88,12 +88,12 @@ class Observation(Generic[ArrayT]):
     # Image masks, with same keys as images.
     image_masks: dict[str, at.Bool[ArrayT, "*b"]]
     # Low-dimensional robot state.
-    state: at.Float[ArrayT, "*b s"]
+    state: at.Float[ArrayT, "*b s"] | None = None
 
     # Tokenized prompt.
-    tokenized_prompt: at.Int[ArrayT, "*b l"] | None = None
+    tokenized_prompt: at.Int[ArrayT, "*b l"]
     # Tokenized prompt mask.
-    tokenized_prompt_mask: at.Bool[ArrayT, "*b l"] | None = None
+    tokenized_prompt_mask: at.Bool[ArrayT, "*b l"]
 
     # pi0-fast model specific fields.
 
