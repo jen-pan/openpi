@@ -32,18 +32,18 @@ class ModelType(enum.Enum):
 
 
 # The model always expects these images
-IMAGE_KEYS = (
+ACTION_PRED_IMAGE_KEYS = (
     # action prediction task
     "base_0_rgb",
     "left_wrist_0_rgb",
     "right_wrist_0_rgb",
+
     # subtask prediction task, hardcoded for now
     "keyframe_1",
     "keyframe_2",
     "keyframe_3",
-    "keyframe_4",
-    "keyframe_5",
-    "keyframe_6",
+    # "keyframe_4",
+    # "keyframe_5",
     "recent_frame_1",
     "recent_frame_2",
     "recent_frame_3",
@@ -169,7 +169,7 @@ def preprocess_observation(
     observation: Observation,
     *,
     train: bool = False,
-    image_keys: Sequence[str] = IMAGE_KEYS,
+    image_keys: Sequence[str] = ACTION_PRED_IMAGE_KEYS,
     image_resolution: tuple[int, int] = IMAGE_RESOLUTION,
 ) -> Observation:
     """Preprocess the observations by performing image augmentations (if train=True), resizing (if necessary), and

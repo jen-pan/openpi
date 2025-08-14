@@ -121,8 +121,8 @@ class Pi0Config(_model.BaseModelConfig):
 
         with at.disable_typechecking():
             observation_spec = _model.Observation(
-                images={key: image_spec for key in _model.IMAGE_KEYS},
-                image_masks={key: image_mask_spec for key in _model.IMAGE_KEYS},
+                images={key: image_spec for key in _model.ACTION_PRED_IMAGE_KEYS + _model.SUBTASK_PRED_IMAGE_KEYS},
+                image_masks={key: image_mask_spec for key in _model.ACTION_PRED_IMAGE_KEYS + _model.SUBTASK_PRED_IMAGE_KEYS},
                 state=jax.ShapeDtypeStruct([batch_size, self.action_dim], jnp.float32),
                 tokenized_prompt=jax.ShapeDtypeStruct([batch_size, self.max_token_len], jnp.int32), 
                 tokenized_prompt_mask=jax.ShapeDtypeStruct([batch_size, self.max_token_len], bool),
@@ -293,7 +293,7 @@ class Pi0(_model.BaseModel):
     ) -> at.Float[at.Array, "*b ah"]:
         assert observation.state is not None, "state is required for action prediction"
         preprocess_rng, noise_rng, time_rng = jax.random.split(rng, 3)
-        observation = _model.preprocess_observation(preprocess_rng, observation, train=train)
+        observation = _model.preprocess_observation(preprocess_rng, observation, train=train, image_keys=list(_model.ACTION_PRED_IMAGE_KEYS))
 
         batch_shape = actions.shape[:-2]
         noise = jax.random.normal(noise_rng, actions.shape)
@@ -328,7 +328,7 @@ class Pi0(_model.BaseModel):
         *,
         num_steps: int | at.Int[at.Array, ""] = 10,
     ) -> _model.Actions:
-        observation = _model.preprocess_observation(None, observation, train=False)
+        observation = _model.preprocess_observation(None, observation, train=False, image_keys=list(_model.ACTION_PRED_IMAGE_KEYS))
         # note that we use the convention more common in diffusion literature, where t=1 is noise and t=0 is the target
         # distribution. yes, this is the opposite of the pi0 paper, and I'm sorry.
         dt = -1.0 / num_steps
@@ -392,7 +392,7 @@ class Pi0(_model.BaseModel):
         train: bool = False,
     ) -> at.Float[at.Array, "*b"]:
         # creates image augmentations and sets up image masking (default is all images are attended to) 
-        observation = _model.preprocess_observation(rng, observation, train=train)
+        observation = _model.preprocess_observation(rng, observation, train=train, image_keys=list(_model.SUBTASK_PRED_IMAGE_KEYS))
 
         # embed obs.images (keyframes + recent frames) and obs.tokenized_prompt (QA prompt) using PaliGemma tokenizer
         # prefix_mask masks out invalid images and padding text tokens
