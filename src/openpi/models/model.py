@@ -37,7 +37,9 @@ ACTION_PRED_IMAGE_KEYS = (
     "base_0_rgb",
     "left_wrist_0_rgb",
     "right_wrist_0_rgb",
+)
 
+SUBTASK_PRED_IMAGE_KEYS = (
     # subtask prediction task, hardcoded for now
     "keyframe_1",
     "keyframe_2",
