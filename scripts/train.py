@@ -393,11 +393,10 @@ def main(config: _config.TrainConfig):
             infos = []
         batch = next(data_iter)
 
-        if step % 1000 == 0 and step != start_step:  # TODO: expose 1000 as a config field
+        if step % config.eval_interval == 0 and step != start_step:
             eval_infos = []
 
             # Determine how many batches constitute one full pass.
-            num_eval_batches: int | None = None
             num_eval_batches = len(eval_loader._data_loader.torch_loader)  # type: ignore[attr-defined]
             batch_idx = 0
             while True:
