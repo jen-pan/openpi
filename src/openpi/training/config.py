@@ -524,6 +524,8 @@ class TrainConfig:
 
     # How often (in steps) to log training metrics.
     log_interval: int = 100
+    # How often (in steps) to run evaluation.
+    eval_interval: int = 1000
     # How often (in steps) to save checkpoints.
     save_interval: int = 1000
     # If set, any existing checkpoints matching step % keep_period == 0 will not be deleted.
@@ -929,8 +931,7 @@ _CONFIGS = [
     TrainConfig(
         name="pi_ft_droid_exclude_01_pct_vel_norm_train",
         model=pi0.Pi0Config(
-            pi05=True, action_dim=32, action_horizon=16
-            # max_token_len=180, # TODO: can i make this higher?
+            pi05=True, action_dim=32, action_horizon=16, subtask_co_training=True
         ),
         data=LeRobotRoboMemoryDataConfig(
             repo_id="jennypan00/pi_ft_droid_exclude_01_pct_vel_norm_train",
