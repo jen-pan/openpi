@@ -250,6 +250,12 @@ class TokenizePrompt(DataTransformFn):
     discrete_state_input: bool = False
 
     def __call__(self, data: DataDict) -> DataDict:
+        # if already tokenized via TokenizeSubtask, skip this transform
+        if "tokenized_prompt" in data and "tokenized_prompt_mask" in data:
+            assert data.get("subtask_target") is not None and data.get("subtask_target_mask") is not None, "subtask_target should exist (subtask prediction batch)if tokenized_prompt and tokenized_prompt_mask already exist"
+            assert data.get("state") is None, "state should not exist (not an action batch) if tokenized_prompt and tokenized_prompt_mask already exist"
+            return data
+
         if (prompt := data.pop("prompt", None)) is None:
             raise ValueError("Prompt is required")
 
@@ -265,6 +271,35 @@ class TokenizePrompt(DataTransformFn):
         tokens, token_masks = self.tokenizer.tokenize(prompt, state)
         return {**data, "tokenized_prompt": tokens, "tokenized_prompt_mask": token_masks}
 
+@dataclasses.dataclass(frozen=True)
+class TokenizeSubtask(DataTransformFn):
+    tokenizer: _tokenizer.PaligemmaTokenizer
+    # no state in subtask prediction task
+    discrete_state_input: bool = False
+
+    def __call__(self, data: DataDict) -> DataDict:
+        # if no subtask target, skip this transform
+        if "subtask_target" not in data:
+            return data
+
+        if (prompt := data.pop("prompt", None)) is None:
+            raise ValueError("Prompt is required")
+        if not isinstance(prompt, str):
+            prompt = prompt.item()
+        tokens, token_masks = self.tokenizer.tokenize(prompt, None)
+
+        subtask_target = data.pop("subtask_target")
+        if not isinstance(subtask_target, str):
+            subtask_target = subtask_target.item()
+        target_tokens, target_masks = self.tokenizer.tokenize(subtask_target, None)
+
+        return {
+            **data,
+            "tokenized_prompt": tokens,
+            "tokenized_prompt_mask": token_masks,
+            "subtask_target": target_tokens,
+            "subtask_target_mask": target_masks,
+        }
 
 @dataclasses.dataclass(frozen=True)
 class TokenizeFASTInputs(DataTransformFn):
@@ -332,11 +367,25 @@ class PadStatesAndActions(DataTransformFn):
     model_action_dim: int
 
     def __call__(self, data: DataDict) -> DataDict:
+        if "state" not in data:
+            assert "subtask_target" in data and "subtask_target_mask" in data, "subtask_target and subtask_target_mask should be present (subtask prediction batch) if state is not present"
+            return data
+
         data["state"] = pad_to_dim(data["state"], self.model_action_dim, axis=-1)
         if "actions" in data:
             data["actions"] = pad_to_dim(data["actions"], self.model_action_dim, axis=-1)
         return data
 
+
+@dataclasses.dataclass(frozen=True)
+class CreateDummyActions(DataTransformFn):
+    action_horizon: int
+    action_dim: int
+    # HACK: the dataloader always yields a tuple (Observation, Actions), so we include dummy actions to keep the unified dataloader from erroring
+    def __call__(self, data: DataDict) -> DataDict:
+        if "actions" not in data:
+            data = {**data, "actions": np.zeros((self.action_horizon, self.action_dim), dtype=np.float32)}
+        return data
 
 def flatten_dict(tree: at.PyTree) -> dict:
     """Flatten a nested dictionary. Uses '/' as the separator."""

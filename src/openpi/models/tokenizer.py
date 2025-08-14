@@ -19,6 +19,7 @@ class PaligemmaTokenizer:
         cleaned_text = prompt.strip().replace("_", " ").replace("\n", " ")
         if state is not None:
             # This is the Pi05 format, where the state is part of the discrete language input.
+            # Converts continuous state values to discrete bins (256 bins in range [-1, 1]). Joins discretized state values into a space-separated string.
             discretized_state = np.digitize(state, bins=np.linspace(-1, 1, 256 + 1)[:-1]) - 1
             state_str = " ".join(map(str, discretized_state))
             full_prompt = f"Task: {cleaned_text}, State: {state_str};\nAction: "

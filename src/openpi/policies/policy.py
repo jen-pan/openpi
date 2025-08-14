@@ -66,6 +66,10 @@ class Policy(BasePolicy):
     def metadata(self) -> dict[str, Any]:
         return self._metadata
 
+    #TODO: create an infer_subtask(self, obs:dict) for subtask prediction
+    def infer_subtask(self, obs: dict) -> dict:
+        # uses predict_subtask from models/pi0.py
+        raise NotImplementedError("Subtask prediction is not implemented for this policy")
 
 class PolicyRecorder(_base_policy.BasePolicy):
     """Records the policy's behavior to disk."""

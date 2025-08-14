@@ -32,10 +32,35 @@ class ModelType(enum.Enum):
 
 
 # The model always expects these images
-IMAGE_KEYS = (
+ACTION_PRED_IMAGE_KEYS = (
+    # action prediction task
     "base_0_rgb",
     "left_wrist_0_rgb",
     "right_wrist_0_rgb",
+)
+
+SUBTASK_PRED_IMAGE_KEYS = (
+    # subtask prediction task, hardcoded for now
+    "keyframe_1",
+    "keyframe_2",
+    "keyframe_3",
+    # "keyframe_4",
+    # "keyframe_5",
+    "recent_frame_1",
+    "recent_frame_2",
+    "recent_frame_3",
+    "recent_frame_4",
+    "recent_frame_5",
+    "recent_frame_6",
+    "recent_frame_7",
+    "recent_frame_8",
+    "recent_frame_9",
+    "recent_frame_10",
+    "recent_frame_11",
+    "recent_frame_12",
+    "recent_frame_13",
+    "recent_frame_14",
+    "recent_frame_15",
 )
 
 
@@ -88,12 +113,12 @@ class Observation(Generic[ArrayT]):
     # Image masks, with same keys as images.
     image_masks: dict[str, at.Bool[ArrayT, "*b"]]
     # Low-dimensional robot state.
-    state: at.Float[ArrayT, "*b s"]
+    state: at.Float[ArrayT, "*b s"] | None = None
 
     # Tokenized prompt.
-    tokenized_prompt: at.Int[ArrayT, "*b l"] | None = None
+    tokenized_prompt: at.Int[ArrayT, "*b l"]
     # Tokenized prompt mask.
-    tokenized_prompt_mask: at.Bool[ArrayT, "*b l"] | None = None
+    tokenized_prompt_mask: at.Bool[ArrayT, "*b l"]
 
     # pi0-fast model specific fields.
 
@@ -102,12 +127,16 @@ class Observation(Generic[ArrayT]):
     # Token loss mask (for FAST autoregressive model).
     token_loss_mask: at.Bool[ArrayT, "*b l"] | None = None
 
+    # Subtask prediction targets (optional): command text tokens and mask
+    subtask_target: at.Int[ArrayT, "*b l"] | None = None
+    subtask_target_mask: at.Bool[ArrayT, "*b l"] | None = None
+
     @classmethod
     def from_dict(cls, data: at.PyTree[ArrayT]) -> "Observation[ArrayT]":
         """This method defines the mapping between unstructured data (i.e., nested dict) to the structured Observation format."""
         # Ensure that tokenized_prompt and tokenized_prompt_mask are provided together.
-        if ("tokenized_prompt" in data) != ("tokenized_prompt_mask" in data):
-            raise ValueError("tokenized_prompt and tokenized_prompt_mask must be provided together.")
+        if "tokenized_prompt" not in data or "tokenized_prompt_mask" not in data:
+            raise ValueError("tokenized_prompt and tokenized_prompt_mask must both be provided.")
         # If images are uint8, convert them to [-1, 1] float32.
         for key in data["image"]:
             if data["image"][key].dtype == np.uint8:
@@ -115,11 +144,13 @@ class Observation(Generic[ArrayT]):
         return cls(
             images=data["image"],
             image_masks=data["image_mask"],
-            state=data["state"],
-            tokenized_prompt=data.get("tokenized_prompt"),
-            tokenized_prompt_mask=data.get("tokenized_prompt_mask"),
+            state=data.get("state"),
+            tokenized_prompt=data["tokenized_prompt"],
+            tokenized_prompt_mask=data["tokenized_prompt_mask"],
             token_ar_mask=data.get("token_ar_mask"),
             token_loss_mask=data.get("token_loss_mask"),
+            subtask_target=data.get("subtask_target"),
+            subtask_target_mask=data.get("subtask_target_mask"),
         )
 
     def to_dict(self) -> at.PyTree[ArrayT]:
@@ -140,7 +171,7 @@ def preprocess_observation(
     observation: Observation,
     *,
     train: bool = False,
-    image_keys: Sequence[str] = IMAGE_KEYS,
+    image_keys: Sequence[str] = ACTION_PRED_IMAGE_KEYS,
     image_resolution: tuple[int, int] = IMAGE_RESOLUTION,
 ) -> Observation:
     """Preprocess the observations by performing image augmentations (if train=True), resizing (if necessary), and
@@ -150,7 +181,7 @@ def preprocess_observation(
     if not set(image_keys).issubset(observation.images):
         raise ValueError(f"images dict missing keys: expected {image_keys}, got {list(observation.images)}")
 
-    batch_shape = observation.state.shape[:-1]
+    batch_shape = observation.tokenized_prompt.shape[:-1]
 
     out_images = {}
     for key in image_keys:
@@ -199,6 +230,8 @@ def preprocess_observation(
         tokenized_prompt_mask=observation.tokenized_prompt_mask,
         token_ar_mask=observation.token_ar_mask,
         token_loss_mask=observation.token_loss_mask,
+        subtask_target=observation.subtask_target,
+        subtask_target_mask=observation.subtask_target_mask,
     )
 
 

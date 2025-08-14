@@ -126,11 +126,17 @@ class ModelTransformFactory(GroupFactory):
                     inputs=[
                         _transforms.InjectDefaultPrompt(self.default_prompt),
                         _transforms.ResizeImages(224, 224),
+                        # conditional subtask tokenization; no-op unless subtask_target present
+                        _transforms.TokenizeSubtask(
+                            _tokenizer.PaligemmaTokenizer(model_config.max_token_len),
+                            discrete_state_input=False,
+                        ),
                         _transforms.TokenizePrompt(
                             _tokenizer.PaligemmaTokenizer(model_config.max_token_len),
                             discrete_state_input=model_config.discrete_state_input,
                         ),
                         _transforms.PadStatesAndActions(model_config.action_dim),
+                        _transforms.CreateDummyActions(model_config.action_horizon, model_config.action_dim),
                     ],
                 )
             case _model.ModelType.PI0_FAST:
@@ -445,20 +451,20 @@ class LeRobotRoboMemoryDataConfig(DataConfigFactory):
 
     @override
     def create(self, assets_dirs: pathlib.Path, model_config: _model.BaseModelConfig) -> DataConfig:
-        repack_transform = _transforms.Group(
-            inputs=[
-                _transforms.RepackTransform(
-                    {
-                        "observation/exterior_image_1_left": "observation/exterior_image_1_left",
-                        "observation/wrist_image_left": "observation/wrist_image_left",
-                        "observation/joint_position": "observation/joint_position",
-                        "observation/gripper_position": "observation/gripper_position",
-                        "actions": "actions",
-                        "prompt": "prompt",
-                    }
-                )
-            ]
-        )
+        # repack_transform = _transforms.Group(
+        #     inputs=[
+        #         _transforms.RepackTransform(
+        #             {
+        #                 "observation/exterior_image_1_left": "observation/exterior_image_1_left",
+        #                 "observation/wrist_image_left": "observation/wrist_image_left",
+        #                 "observation/joint_position": "observation/joint_position",
+        #                 "observation/gripper_position": "observation/gripper_position",
+        #                 "actions": "actions",
+        #                 "prompt": "prompt",
+        #             }
+        #         )
+        #     ]
+        # )
 
         data_transforms = _transforms.Group(
             inputs=[robomemory_policy.RoboMemoryInputs(model_type=model_config.model_type)],
@@ -518,6 +524,8 @@ class TrainConfig:
 
     # How often (in steps) to log training metrics.
     log_interval: int = 100
+    # How often (in steps) to run evaluation.
+    eval_interval: int = 1000
     # How often (in steps) to save checkpoints.
     save_interval: int = 1000
     # If set, any existing checkpoints matching step % keep_period == 0 will not be deleted.
@@ -539,6 +547,10 @@ class TrainConfig:
     # eg. if total device is 4 and fsdp devices is 2; then the model will shard to 2 devices and run
     # data parallel between 2 groups of devices.
     fsdp_devices: int = 1
+
+    # Subtask co-training settings
+    loss_action_weight: float = 1.0 # TODO: experiment with this
+    loss_subtask_weight: float = 1.0
 
     @property
     def assets_dirs(self) -> pathlib.Path:
@@ -917,13 +929,12 @@ _CONFIGS = [
         ema_decay=None,
     ),  
     TrainConfig(
-        name="pi05_robomemory_finetune",
+        name="pi_ft_droid_exclude_01_pct_vel_norm_train",
         model=pi0.Pi0Config(
-            pi05=True, action_dim=32, action_horizon=16
-            # max_token_len=180,
+            pi05=True, action_dim=32, action_horizon=16, subtask_co_training=True
         ),
         data=LeRobotRoboMemoryDataConfig(
-            repo_id="jennypan00/pi0_fast_ft_droid_lerobot_train",
+            repo_id="jennypan00/pi_ft_droid_exclude_01_pct_vel_norm_train",
             base_config=DataConfig(prompt_from_task=True),
             assets=AssetsConfig( 
                 assets_dir= "gs://openpi-assets-preview/checkpoints/pi05_droid/assets",
@@ -931,8 +942,8 @@ _CONFIGS = [
             ),
         ),
         weight_loader=weight_loaders.CheckpointWeightLoader("gs://openpi-assets-preview/checkpoints/pi05_droid/params"),
-        num_train_steps=20_000,
-        batch_size=64,
+        num_train_steps=30_000,
+        batch_size=128,
     ),
     #
     # ALOHA Sim configs. This config is used to demonstrate how to train on a simple simulated environment.
