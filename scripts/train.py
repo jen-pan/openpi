@@ -181,7 +181,7 @@ def train_step(
         model: _model.BaseModel, rng: at.KeyArrayLike, observation: _model.Observation, actions: _model.Actions
     ):
         chunked_loss = model.compute_loss(rng, observation, actions, train=True)
-        return jnp.mean(chunked_loss)
+        return jnp.mean(chunked_loss) * config.loss_action_weight
 
     train_rng = jax.random.fold_in(rng, state.step)
     observation, actions = batch
@@ -222,6 +222,50 @@ def train_step(
         "param_norm": optax.global_norm(kernel_params),
     }
     return new_state, info
+
+
+@at.typecheck
+def train_step_subtask(
+	config: _config.TrainConfig,
+	rng: at.KeyArrayLike,
+	state: training_utils.TrainState,
+	observation: _model.Observation,
+) -> tuple[training_utils.TrainState, dict[str, at.Array]]:
+	model = nnx.merge(state.model_def, state.params)
+	model.train()
+
+	def loss_fn(model: _model.BaseModel, rng: at.KeyArrayLike, observation: _model.Observation):
+		loss = model.compute_subtask_loss(rng, observation, train=True)
+		return jnp.mean(loss) * config.loss_subtask_weight
+
+	train_rng = jax.random.fold_in(rng, state.step)
+
+	diff_state = nnx.DiffState(0, config.trainable_filter)
+	loss, grads = nnx.value_and_grad(loss_fn, argnums=diff_state)(model, train_rng, observation)
+	params = state.params.filter(config.trainable_filter)
+	updates, new_opt_state = state.tx.update(grads, state.opt_state, params)
+	new_params = optax.apply_updates(params, updates)
+	nnx.update(model, new_params)
+	new_params = nnx.state(model)
+	new_state = dataclasses.replace(state, step=state.step + 1, params=new_params, opt_state=new_opt_state)
+	if state.ema_decay is not None:
+		new_state = dataclasses.replace(
+			new_state,
+			ema_params=jax.tree.map(
+				lambda old, new: state.ema_decay * old + (1 - state.ema_decay) * new, state.ema_params, new_params
+			),
+		)
+	kernel_params = nnx.state(
+		model,
+		nnx.All(
+			nnx.Param,
+			nnx.Not(nnx_utils.PathRegex(".*/(bias|scale|pos_embedding|input_embedding)")),
+			lambda _, x: x.value.ndim > 1,
+		),
+	)
+	info = {"loss": loss, "grad_norm": optax.global_norm(grads), "param_norm": optax.global_norm(kernel_params)}
+	return new_state, info
+
 
 @at.typecheck
 def eval_step(
@@ -309,6 +353,12 @@ def main(config: _config.TrainConfig):
         out_shardings=(train_state_sharding, replicated_sharding),
         donate_argnums=(1,),
     )
+    ptrain_step_subtask = jax.jit(
+		functools.partial(train_step_subtask, config),
+		in_shardings=(replicated_sharding, train_state_sharding, data_sharding),
+		out_shardings=(train_state_sharding, replicated_sharding),
+		donate_argnums=(1,),
+	)
     peval_step = jax.jit(
         functools.partial(eval_step, config),
         in_shardings=(replicated_sharding, train_state_sharding, data_sharding),
@@ -327,7 +377,12 @@ def main(config: _config.TrainConfig):
     infos = []
     for step in pbar:
         with sharding.set_mesh(mesh):
-            train_state, info = ptrain_step(train_rng, train_state, batch)
+            # choose path based on whether subtask targets are present in the batch
+            observation, _ = batch
+            if observation.subtask_target is not None and observation.subtask_target_mask is not None:
+                train_state, info = ptrain_step_subtask(train_rng, train_state, observation)
+            else:
+                train_state, info = ptrain_step(train_rng, train_state, batch)
         infos.append(info)
         if step % config.log_interval == 0:
             stacked_infos = common_utils.stack_forest(infos)
