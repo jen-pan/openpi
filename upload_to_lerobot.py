@@ -41,7 +41,7 @@ def create_action_pred_dataset(data, repo_id, robot_type, fps, dof):
             },
             "actions": {
                 "dtype" : "float64",
-                "shape" : (DOF + 1,),        # action/joint velocity + action/gripper position
+                "shape" : (dof + 1,),        # action/joint velocity + action/gripper position
                 "names" : ["actions"],   
             },
         },
@@ -72,7 +72,7 @@ def create_action_pred_dataset(data, repo_id, robot_type, fps, dof):
         print("Saving final episode for prompt: ", current_prompt, ". FINISHED!")
         ds.save_episode()
     
-def create_subtask_pred_dataset(data, repo_id, robot_type, fps, dof):
+def create_subtask_pred_dataset(data, repo_id, robot_type, fps):
     """Create and populate LeRobot dataset for subtask prediction task."""
     ds = LeRobotDataset.create(
         repo_id   = repo_id,    
@@ -114,7 +114,7 @@ def create_subtask_pred_dataset(data, repo_id, robot_type, fps, dof):
             keyframe_1 = np.zeros((180, 320, 3), dtype=np.uint8) # TODO: deal with nulls
         if type(recent_frame_1) == float:
             recent_frame_1 = np.zeros((180, 320, 3), dtype=np.uint8) # TODO: deal with nulls
-            
+
         ds.add_frame(frame = {"recent_frame_1": recent_frame_1, "keyframe_1": keyframe_1, "prompt": prompt, "subtask_target": subtask_target}, task = prompt)
     ds.save_episode()
         
@@ -151,7 +151,7 @@ def main():
     if TASK == 'action_pred':
         create_action_pred_dataset(DATA, REPO_ID, ROBOT_TYPE, FPS, DOF)
     elif TASK == 'subtask_pred':
-        create_subtask_pred_dataset(DATA, REPO_ID, ROBOT_TYPE, FPS, DOF)
+        create_subtask_pred_dataset(DATA, REPO_ID, ROBOT_TYPE, FPS)
 
 if __name__ == "__main__":
     main()
