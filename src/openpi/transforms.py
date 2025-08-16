@@ -246,7 +246,7 @@ class AbsoluteActions(DataTransformFn):
 
 @dataclasses.dataclass(frozen=True)
 class TokenizePrompt(DataTransformFn):
-    tokenizer: _tokenizer.PaligemmaTokenizer
+    prompt_tokenizer: _tokenizer.PaligemmaTokenizer
     discrete_state_input: bool = False
 
     def __call__(self, data: DataDict) -> DataDict:
@@ -268,12 +268,13 @@ class TokenizePrompt(DataTransformFn):
         if not isinstance(prompt, str):
             prompt = prompt.item()
 
-        tokens, token_masks = self.tokenizer.tokenize(prompt, state)
+        tokens, token_masks = self.prompt_tokenizer.tokenize(prompt, state)
         return {**data, "tokenized_prompt": tokens, "tokenized_prompt_mask": token_masks}
 
 @dataclasses.dataclass(frozen=True)
 class TokenizeSubtask(DataTransformFn):
-    tokenizer: _tokenizer.PaligemmaTokenizer
+    subtask_tokenizer: _tokenizer.PaligemmaTokenizer
+    prompt_tokenizer: _tokenizer.PaligemmaTokenizer
     # no state in subtask prediction task
     discrete_state_input: bool = False
 
@@ -286,12 +287,12 @@ class TokenizeSubtask(DataTransformFn):
             raise ValueError("Prompt is required")
         if not isinstance(prompt, str):
             prompt = prompt.item()
-        tokens, token_masks = self.tokenizer.tokenize(prompt, None)
+        tokens, token_masks = self.prompt_tokenizer.tokenize(prompt, None)
 
         subtask_target = data.pop("subtask_target")
         if not isinstance(subtask_target, str):
             subtask_target = subtask_target.item()
-        target_tokens, target_masks = self.tokenizer.tokenize(subtask_target, None)
+        target_tokens, target_masks = self.subtask_tokenizer.tokenize(subtask_target, None)
 
         return {
             **data,

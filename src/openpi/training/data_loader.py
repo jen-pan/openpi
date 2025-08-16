@@ -3,7 +3,7 @@ import multiprocessing
 import os
 import typing
 from typing import Protocol, SupportsIndex, TypeVar
-
+from rich import print
 import jax
 import jax.numpy as jnp
 import lerobot.common.datasets.lerobot_dataset as lerobot_dataset
@@ -133,17 +133,16 @@ def create_torch_dataset(
     if is_eval:
         # repo_id = data_config.repo_id.replace("_train", "_test")
         repo_id = "jennypan00/pi0_fast_ft_droid_lerobot_test" # TODO: hardcoded for now
-        print("------CREATING EVAL DATASET------", repo_id)
     else:
         repo_id = data_config.repo_id
-        print("------CREATING TRAIN DATASET------", repo_id)
     if repo_id is None:
         raise ValueError("Repo ID is not set. Cannot create dataset.")
     if repo_id == "fake":
         return FakeDataset(model_config, num_samples=1024)
 
     dataset_meta = lerobot_dataset.LeRobotDatasetMetadata(repo_id)
-    print("------DATASET META------", dataset_meta)
+    print(f"[bold green]{'EVAL' if is_eval else 'TRAIN'} DATASET META[/]")
+    print(dataset_meta)
     dataset = lerobot_dataset.LeRobotDataset(
         data_config.repo_id,
         delta_timestamps={
@@ -236,7 +235,7 @@ def create_data_loader(
 ) -> DataLoader[tuple[_model.Observation, _model.Actions]]:
     """Create a data loader for training."""
     data_config = config.data.create(config.assets_dirs, config.model)
-    print("------create_data_loader CONFIG------", data_config)
+    # print("------create_data_loader CONFIG------", data_config)
     if data_config.rlds_data_dir is not None:
         return create_rlds_data_loader(
             data_config,

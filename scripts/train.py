@@ -3,7 +3,7 @@ import functools
 import logging
 import platform
 from typing import Any
-
+from rich import print
 import os, logging
 
 def initialise_tracking(interval: float=1., dir_prefix: str='/dev/shm') -> None:
@@ -189,7 +189,6 @@ def train_step(
     # Filter out frozen params.
     diff_state = nnx.DiffState(0, config.trainable_filter)
     loss, grads = nnx.value_and_grad(loss_fn, argnums=diff_state)(model, train_rng, observation, actions)
-
     params = state.params.filter(config.trainable_filter)
     updates, new_opt_state = state.tx.update(grads, state.opt_state, params)
     new_params = optax.apply_updates(params, updates)
@@ -206,7 +205,6 @@ def train_step(
                 lambda old, new: state.ema_decay * old + (1 - state.ema_decay) * new, state.ema_params, new_params
             ),
         )
-
     # Filter out params that aren't kernels.
     kernel_params = nnx.state(
         model,
@@ -293,13 +291,13 @@ def eval_step(
 def main(config: _config.TrainConfig):
     init_logging()
     logging.info(f"Running on: {platform.node()}")
-    print("------TRAIN CONFIG------", config)
-    print("------device_count------", jax.device_count())
+    print("[bold green]TRAIN CONFIG[/]", config)
+    print("[bold green]device_count[/]", jax.device_count())
     if config.batch_size % jax.device_count() != 0:
         raise ValueError(
             f"Batch size {config.batch_size} must be divisible by the number of devices {jax.device_count()}."
         )
-    print("------per_device_batch_size------", config.batch_size // jax.device_count())
+    print("[bold green]per_device_batch_size[/]", config.batch_size // jax.device_count())
     jax.config.update("jax_compilation_cache_dir", CACHE_DIR)
 
     rng = jax.random.key(config.seed)
@@ -328,17 +326,49 @@ def main(config: _config.TrainConfig):
         shuffle=False,
         is_eval=True,
     )
+    # subtask dataloader
+    if config.subtask_data is not None:
+        print("[bold green]SUBTASK DATALOADER[/]", config.subtask_data)
+        subtask_config = dataclasses.replace(
+            config,
+            data=config.subtask_data,
+            batch_size=config.subtask_batch_size
+        )
+        subtask_loader = _data_loader.create_data_loader(
+            subtask_config,
+            sharding=data_sharding,
+            shuffle=True,
+            skip_norm_stats=True,  # skip normalization for subtask data
+        )
+        subtask_iter = iter(subtask_loader)
+    else:
+        subtask_loader = None
+        subtask_iter = None
+
     data_iter = iter(data_loader)
     eval_iter = iter(eval_loader)
-    batch = next(data_iter)
-    logging.info(f"Initialized data loader:\n{training_utils.array_tree_to_info(batch)}")
+    
+    # Get initial batch for logging and sanity checking,
+    initial_action_batch = next(data_iter)
+    logging.info(f"Initialized data loader:\n{training_utils.array_tree_to_info(initial_action_batch)}")
 
     # Log images from first batch to sanity check.
     images_to_log = [
-        wandb.Image(np.concatenate([np.array(img[i]) for img in batch[0].images.values()], axis=1))
-        for i in range(min(5, len(next(iter(batch[0].images.values())))))
+        wandb.Image(np.concatenate([np.array(img[i]) for img in initial_action_batch[0].images.values()], axis=1))
+        for i in range(min(5, len(next(iter(initial_action_batch[0].images.values())))))
     ]
     wandb.log({"camera_views": images_to_log}, step=0)
+    
+    # if subtask data is available, also log images from subtask batch
+    if subtask_iter is not None:
+        initial_subtask_batch = next(subtask_iter)
+        logging.info(f"Initialized subtask data loader:\n{training_utils.array_tree_to_info(initial_subtask_batch)}")
+        
+        subtask_images_to_log = [
+            wandb.Image(np.concatenate([np.array(img[i]) for img in initial_subtask_batch[0].images.values()], axis=1))
+            for i in range(min(5, len(next(iter(initial_subtask_batch[0].images.values())))))
+        ]
+        wandb.log({"subtask_camera_views": subtask_images_to_log}, step=0)
 
     train_state, train_state_sharding = init_train_state(config, init_rng, mesh, resume=resuming)
     jax.block_until_ready(train_state)
@@ -375,14 +405,24 @@ def main(config: _config.TrainConfig):
     )
 
     infos = []
+    # track which data loader to use next for alternating
+    use_subtask_next = True 
+    
     for step in pbar:
         with sharding.set_mesh(mesh):
-            # choose path based on whether subtask targets are present in the batch
-            observation, _ = batch
-            if observation.subtask_target is not None and observation.subtask_target_mask is not None:
+            # alternate between main data and subtask data when subtask_iter is available
+            if subtask_iter is not None and use_subtask_next:
+                batch = next(subtask_iter)
+                observation, _ = batch
                 train_state, info = ptrain_step_subtask(train_rng, train_state, observation)
+                use_subtask_next = False  # switch back to main data next
             else:
+                batch = next(data_iter)
                 train_state, info = ptrain_step(train_rng, train_state, batch)
+                # if subtask_iter exists, switch to subtask next
+                if subtask_iter is not None:
+                    use_subtask_next = True
+                    
         infos.append(info)
         if step % config.log_interval == 0:
             stacked_infos = common_utils.stack_forest(infos)
@@ -391,7 +431,6 @@ def main(config: _config.TrainConfig):
             pbar.write(f"Step {step}: {info_str}")
             wandb.log(reduced_info, step=step)
             infos = []
-        batch = next(data_iter)
 
         if step % config.eval_interval == 0 and step != start_step:
             eval_infos = []
