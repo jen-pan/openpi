@@ -44,8 +44,8 @@ SUBTASK_PRED_IMAGE_KEYS = (
     "keyframe_1",
     "keyframe_2",
     "keyframe_3",
-    # "keyframe_4",
-    # "keyframe_5",
+    "keyframe_4",
+    "keyframe_5",
     "recent_frame_1",
     "recent_frame_2",
     "recent_frame_3",
@@ -112,13 +112,13 @@ class Observation(Generic[ArrayT]):
     images: dict[str, at.Float[ArrayT, "*b h w c"]]
     # Image masks, with same keys as images.
     image_masks: dict[str, at.Bool[ArrayT, "*b"]]
-    # Low-dimensional robot state.
-    state: at.Float[ArrayT, "*b s"] | None = None
-
     # Tokenized prompt.
     tokenized_prompt: at.Int[ArrayT, "*b l"]
     # Tokenized prompt mask.
     tokenized_prompt_mask: at.Bool[ArrayT, "*b l"]
+
+    # Low-dimensional robot state.
+    state: at.Float[ArrayT, "*b s"] | None = None
 
     # pi0-fast model specific fields.
 
@@ -128,8 +128,8 @@ class Observation(Generic[ArrayT]):
     token_loss_mask: at.Bool[ArrayT, "*b l"] | None = None
 
     # Subtask prediction targets (optional): command text tokens and mask
-    subtask_target: at.Int[ArrayT, "*b l"] | None = None
-    subtask_target_mask: at.Bool[ArrayT, "*b l"] | None = None
+    subtask_target: at.Int[ArrayT, "*b tl"] | None = None
+    subtask_target_mask: at.Bool[ArrayT, "*b tl"] | None = None
 
     @classmethod
     def from_dict(cls, data: at.PyTree[ArrayT]) -> "Observation[ArrayT]":

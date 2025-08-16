@@ -33,7 +33,6 @@ class RoboMemoryInputs(transforms.DataTransformFn):
     model_type: _model.ModelType
 
     def __call__(self, data: dict) -> dict:
-        print("----------ROBOMEMORY DATA", data)
         assert "prompt" in data, "prompt must be in data for either action prediction or subtask prediction"
         prompt = data["prompt"] if isinstance(data["prompt"], str) else data["prompt"].decode("utf-8")
 
@@ -86,7 +85,6 @@ class RoboMemoryInputs(transforms.DataTransformFn):
                 "subtask_target": data["subtask_target"] if isinstance(data["subtask_target"], str) else data["subtask_target"].decode("utf-8"),
             }
         
-        print("----------ROBOMEMORY INPUTS", inputs)
         return inputs
 
 

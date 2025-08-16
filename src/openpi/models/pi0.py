@@ -83,23 +83,18 @@ class Pi0Config(_model.BaseModelConfig):
     action_dim: int = 32
     action_horizon: int = 50
     max_token_len: int = None  # type: ignore
-    max_subtask_token_len: int = 100
+    max_subtask_token_len: int = 50 
 
     # Pi05 has two differences from Pi0:
     # - the state input is part of the discrete language tokens rather than a continuous input that is part of the suffix
     # - the action expert uses adaRMSNorm to inject the flow matching timestep
     pi05: bool = False
-    subtask_co_training: bool = False
     # This config option is not used directly by the model, but it is read by the ModelTransformFactory.
     discrete_state_input: bool = None  # type: ignore
 
     def __post_init__(self):
         if self.max_token_len is None:
-            if self.pi05 and self.subtask_co_training:
-                # need longer max_token_len for QA prompts
-                object.__setattr__(self, "max_token_len", 400)
-            else:
-                object.__setattr__(self, "max_token_len", 200 if self.pi05 else 48)
+            object.__setattr__(self, "max_token_len", 200 if self.pi05 else 48)
         if self.discrete_state_input is None:
             object.__setattr__(self, "discrete_state_input", self.pi05)
 
@@ -307,13 +302,16 @@ class Pi0(_model.BaseModel):
         suffix_tokens, suffix_mask, suffix_ar_mask, adarms_cond = self.embed_suffix(observation, x_t, time)
         input_mask = jnp.concatenate([prefix_mask, suffix_mask], axis=1)
         ar_mask = jnp.concatenate([prefix_ar_mask, suffix_ar_mask], axis=0)
+        
+        print(f"prefix_mask shape: {prefix_mask.shape}")  
+        print(f"suffix_mask shape: {suffix_mask.shape}")
         attn_mask = make_attn_mask(input_mask, ar_mask)
+        print(f"attn_mask shape: {attn_mask.shape}")
         positions = jnp.cumsum(input_mask, axis=1) - 1
         (prefix_out, suffix_out), _ = self.PaliGemma.llm(
             [prefix_tokens, suffix_tokens], mask=attn_mask, positions=positions, adarms_cond=[None, adarms_cond]
         )
         v_t = self.action_out_proj(suffix_out[:, -self.action_horizon :])
-
         return jnp.mean(jnp.square(v_t - u_t), axis=-1)
 
     # TODO: need a subtask prediction inference function for policy serving
@@ -422,9 +420,11 @@ class Pi0(_model.BaseModel):
         # forward only through Paligemma expert
         (lang_out, _), _ = self.PaliGemma.llm([embedded, None], mask=attn_mask, positions=positions, adarms_cond=None)
         subtask_prediction = lang_out[:, -target_len:]
-        logits = self.PaliGemma.llm.module.embedder.decode(subtask_prediction.astype(jnp.float32))
+        logits = self.PaliGemma.llm(subtask_prediction.astype(jnp.float32), method="decode")
+        print(f"logits shape: {logits.shape}")
         logp = jax.nn.log_softmax(logits, axis=-1)
 
         token_logp = jnp.take_along_axis(logp, target_tok[..., None], axis=-1)[..., 0]
         ce_loss = -jnp.sum(token_logp * target_mask, axis=-1) / jnp.clip(jnp.sum(target_mask, axis=-1), 1)
+        print(f"ce_loss shape: {ce_loss.shape}")
         return ce_loss
