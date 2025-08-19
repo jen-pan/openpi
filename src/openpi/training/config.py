@@ -934,6 +934,50 @@ _CONFIGS = [
         num_train_steps=20_000,
         batch_size=64,
     ),
+    TrainConfig(
+        name="pi05_search_low_mem_finetune",
+        model=pi0.Pi0Config(
+            pi05=True,
+            action_dim=32, 
+            action_horizon=16, 
+            paligemma_variant="gemma_2b_lora"
+            # max_token_len=180,
+        ),
+        data=LeRobotRoboMemoryDataConfig(
+            repo_id="ajaysri/cardboard-search-demos-train",
+            base_config=DataConfig(prompt_from_task=True),
+            assets=AssetsConfig(
+                assets_dir="gs://openpi-assets-preview/checkpoints/pi05_droid/assets",
+                asset_id="droid"
+            ),
+        ),
+        weight_loader=weight_loaders.CheckpointWeightLoader("gs://openpi-assets-preview/checkpoints/pi05_droid/params"),
+        num_train_steps=20_000,
+        batch_size=1,
+        freeze_filter=pi0.Pi0Config(
+            pi05=True, action_dim=32, action_horizon=16, paligemma_variant="gemma_2b_lora"
+        ).get_freeze_filter(),
+        ema_decay=None,
+    ), 
+    TrainConfig(
+        name="pi05_search_finetune",
+        model=pi0.Pi0Config(
+            pi05=True, action_dim=32, action_horizon=16
+            # max_token_len=180,
+        ),
+        data=LeRobotRoboMemoryDataConfig(
+            repo_id="ajaysri/cardboard-search-demos-train",
+            base_config=DataConfig(prompt_from_task=True),
+            assets=AssetsConfig( 
+                assets_dir= "gs://openpi-assets-preview/checkpoints/pi05_droid/assets",
+                asset_id="droid"
+            ),
+        ),
+        weight_loader=weight_loaders.CheckpointWeightLoader("gs://openpi-assets-preview/checkpoints/pi05_droid/params"),
+        num_train_steps=20_000,
+        batch_size=128,
+    ),
+    
     #
     # ALOHA Sim configs. This config is used to demonstrate how to train on a simple simulated environment.
     #

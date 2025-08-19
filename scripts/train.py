@@ -28,7 +28,7 @@ logging.getLogger("jax").setLevel(logging.ERROR)
 # Use a user-specific directory in /tmp for JAX's persistent compilation cache.
 # This avoids permission or quota issues that can arise if multiple users share
 # the same machine or if the default ~/.cache path is quota-restricted.
-cache_dir = f"/tmp/jax_cache_jrpan"
+cache_dir = f"/tmp/jax_cache_ajayri"
 # Ensure the directory exists and is writable.
 os.makedirs(cache_dir, exist_ok=True)
 # Expose it both to JAX via the env-var *before* importing JAX, and later via

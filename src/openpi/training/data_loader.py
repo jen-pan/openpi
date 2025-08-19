@@ -132,7 +132,7 @@ def create_torch_dataset(
     """Create a dataset for training."""
     if is_eval:
         # repo_id = data_config.repo_id.replace("_train", "_test")
-        repo_id = "jennypan00/pi0_fast_ft_droid_lerobot_test" # TODO: hardcoded for now
+        repo_id = "ajaysri/cardboard-search-demos-test" #"jennypan00/pi0_fast_ft_droid_lerobot_test" # TODO: hardcoded for now
         print("------CREATING EVAL DATASET------", repo_id)
     else:
         repo_id = data_config.repo_id
