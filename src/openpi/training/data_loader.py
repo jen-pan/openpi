@@ -231,6 +231,7 @@ def create_data_loader(
     num_batches: int | None = None,
     skip_norm_stats: bool = False,
     is_eval: bool = False,
+    task: str = "action_pred",
 ) -> DataLoader[tuple[_model.Observation, _model.Actions]]:
     """Create a data loader for training."""
     data_config = config.data.create(config.assets_dirs, config.model)
@@ -257,6 +258,7 @@ def create_data_loader(
         seed=config.seed,
         skip_norm_stats=skip_norm_stats,
         is_eval=is_eval,
+        task=task,
     )
 
 
@@ -273,6 +275,7 @@ def create_torch_data_loader(
     num_workers: int = 0,
     seed: int = 0,
     is_eval: bool = False,
+    task: str = "action_pred",
 ) -> DataLoader[tuple[_model.Observation, _model.Actions]]:
     """Create a data loader for training.
 
@@ -302,6 +305,7 @@ def create_torch_data_loader(
         num_batches=num_batches,
         num_workers=num_workers,
         seed=seed,
+        task=task,
     )
 
     return DataLoaderImpl(data_config, data_loader)
@@ -356,6 +360,7 @@ class TorchDataLoader:
         num_batches: int | None = None,
         num_workers: int = 0,
         seed: int = 0,
+        task: str = "action_pred",
     ):
         """Create a PyTorch data loader.
 
@@ -387,7 +392,7 @@ class TorchDataLoader:
 
         self._sharding = sharding
         self._num_batches = num_batches
-
+        self._task = task
         mp_context = None
         if num_workers > 0:
             mp_context = multiprocessing.get_context("spawn")
@@ -421,6 +426,7 @@ class TorchDataLoader:
                 try:
                     batch = next(data_iter)
                 except StopIteration:
+                    print(f"[DATALOADER] Torch data iterator exhausted for task: {self._task}, starting new cycle")
                     break  # We've exhausted the dataset. Create a new iterator and start over.
                 num_items += 1
                 yield jax.tree.map(lambda x: jax.make_array_from_process_local_data(self._sharding, x), batch)

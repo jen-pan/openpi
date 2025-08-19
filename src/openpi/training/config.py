@@ -565,6 +565,8 @@ class TrainConfig:
     # Subtask co-training settings
     loss_action_weight: float = 1.0 # TODO(jenny): experiment with this
     loss_subtask_weight: float = 1.0
+    # Ratio of subtask steps to main steps (e.g., 1 means 1:1, 2 means 1 subtask per 2 main steps)
+    subtask_step_ratio: int = 1
 
     @property
     def assets_dirs(self) -> pathlib.Path:

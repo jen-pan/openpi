@@ -281,6 +281,10 @@ def main(config: _config.TrainConfig):
         raise ValueError(
             f"Batch size {config.batch_size} must be divisible by the number of devices {jax.device_count()}."
         )
+    if config.subtask_batch_size % jax.device_count() != 0:
+        raise ValueError(
+            f"Subtask batch size {config.subtask_batch_size} must be divisible by the number of devices {jax.device_count()}."
+        )
     print("[bold green]per_device_batch_size[/]", config.batch_size // jax.device_count())
     jax.config.update("jax_compilation_cache_dir", CACHE_DIR)
 
@@ -303,12 +307,14 @@ def main(config: _config.TrainConfig):
         config,
         sharding=data_sharding,
         shuffle=True,
+        task="action_pred"
     )
     eval_loader = _data_loader.create_data_loader(
         config,
         sharding=data_sharding,
         shuffle=False,
         is_eval=True,
+        task="action_pred"
     )
     # subtask dataloader
     if config.subtask_data is not None:
@@ -323,11 +329,14 @@ def main(config: _config.TrainConfig):
             sharding=data_sharding,
             shuffle=True,
             skip_norm_stats=True,  # skip normalization for subtask data
+            task="subtask_pred"
         )
         subtask_iter = iter(subtask_loader)
     else:
         subtask_loader = None
         subtask_iter = None
+
+        #TODO(jenny): add subtask eval loader
 
     data_iter = iter(data_loader)
     eval_iter = iter(eval_loader)
@@ -388,33 +397,55 @@ def main(config: _config.TrainConfig):
         dynamic_ncols=True,
     )
 
-    infos = []
-    # track which data loader to use next for alternating
-    use_subtask_next = True 
+    action_infos = []
+    subtask_infos = []
     
     for step in pbar:
         with sharding.set_mesh(mesh):
-            # alternate between main data and subtask data when subtask_iter is available
-            if subtask_iter is not None and use_subtask_next:
+            # Use ratio-based scheduling for subtask steps
+            should_do_subtask = (subtask_iter is not None and 
+                                step % config.subtask_step_ratio == 0)
+            
+            if should_do_subtask:
                 batch = next(subtask_iter)
                 observation, _ = batch
                 train_state, info = ptrain_step_subtask(train_rng, train_state, observation)
-                use_subtask_next = False  # switch back to main data next
+                subtask_info = {f"subtask/{k}": v for k, v in info.items()}
+                subtask_infos.append(subtask_info)
             else:
                 batch = next(data_iter)
                 train_state, info = ptrain_step(train_rng, train_state, batch)
-                # if subtask_iter exists, switch to subtask next
-                if subtask_iter is not None:
-                    use_subtask_next = True
-                    
-        infos.append(info)
+                # Prefix action metrics with action/
+                action_info = {f"action/{k}": v for k, v in info.items()}
+                action_infos.append(action_info)
         if step % config.log_interval == 0:
-            stacked_infos = common_utils.stack_forest(infos)
-            reduced_info = jax.device_get(jax.tree.map(jnp.mean, stacked_infos))
-            info_str = ", ".join(f"{k}={v:.4f}" for k, v in reduced_info.items())
-            pbar.write(f"Step {step}: {info_str}")
-            wandb.log(reduced_info, step=step)
-            infos = []
+            combined_info = {}
+            info_parts = []
+            
+            # Process action infos
+            if action_infos:
+                stacked_action = common_utils.stack_forest(action_infos)
+                reduced_action = jax.device_get(jax.tree.map(jnp.mean, stacked_action))
+                combined_info.update(reduced_action)
+                action_str = ", ".join(f"{k}={v:.4f}" for k, v in reduced_action.items())
+                info_parts.append(action_str)
+                
+            # Process subtask infos
+            if subtask_infos:
+                stacked_subtask = common_utils.stack_forest(subtask_infos)
+                reduced_subtask = jax.device_get(jax.tree.map(jnp.mean, stacked_subtask))
+                combined_info.update(reduced_subtask)
+                subtask_str = ", ".join(f"{k}={v:.4f}" for k, v in reduced_subtask.items())
+                info_parts.append(subtask_str)
+            
+            # Log combined info
+            if combined_info:
+                info_str = ", ".join(info_parts)
+                pbar.write(f"Step {step}: {info_str}")
+                wandb.log(combined_info, step=step)
+                
+            action_infos = []
+            subtask_infos = []
 
         if step % config.eval_interval == 0 and step != start_step:
             eval_infos = []

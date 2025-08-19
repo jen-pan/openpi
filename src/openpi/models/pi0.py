@@ -421,10 +421,8 @@ class Pi0(_model.BaseModel):
         (lang_out, _), _ = self.PaliGemma.llm([embedded, None], mask=attn_mask, positions=positions, adarms_cond=None)
         subtask_prediction = lang_out[:, -target_len:]
         logits = self.PaliGemma.llm(subtask_prediction.astype(jnp.float32), method="decode")
-        print(f"logits shape: {logits.shape}")
         logp = jax.nn.log_softmax(logits, axis=-1)
 
         token_logp = jnp.take_along_axis(logp, target_tok[..., None], axis=-1)[..., 0]
         ce_loss = -jnp.sum(token_logp * target_mask, axis=-1) / jnp.clip(jnp.sum(target_mask, axis=-1), 1)
-        print(f"ce_loss shape: {ce_loss.shape}")
         return ce_loss
