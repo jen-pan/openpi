@@ -131,8 +131,7 @@ def create_torch_dataset(
 ) -> Dataset:
     """Create a dataset for training."""
     if is_eval:
-        # repo_id = data_config.repo_id.replace("_train", "_test")
-        repo_id = "jennypan00/pi0_fast_ft_droid_lerobot_test" # TODO: hardcoded for now
+        repo_id = "jennypan00/pi0_fast_ft_droid_lerobot_test" # hardcoded for now
     else:
         repo_id = data_config.repo_id
     if repo_id is None:

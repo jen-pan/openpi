@@ -84,7 +84,32 @@ def create_subtask_pred_dataset(data, repo_id, robot_type, fps):
                 "shape": (180, 320, 3),
                 "names": ["height", "width", "channel"],
             },
+            "recent_frame_2": {
+                "dtype": "image",
+                "shape": (180, 320, 3),
+                "names": ["height", "width", "channel"],
+            },
+            "recent_frame_3": {
+                "dtype": "image",
+                "shape": (180, 320, 3),
+                "names": ["height", "width", "channel"],
+            },
+            "recent_frame_4": {
+                "dtype": "image",
+                "shape": (180, 320, 3),
+                "names": ["height", "width", "channel"],
+            },
             "keyframe_1": {
+                "dtype": "image",
+                "shape": (180, 320, 3),
+                "names": ["height", "width", "channel"],
+            },
+            "keyframe_2": {
+                "dtype": "image",
+                "shape": (180, 320, 3),
+                "names": ["height", "width", "channel"],
+            },
+            "keyframe_3": {
                 "dtype": "image",
                 "shape": (180, 320, 3),
                 "names": ["height", "width", "channel"],
@@ -106,16 +131,22 @@ def create_subtask_pred_dataset(data, repo_id, robot_type, fps):
 
     for _, row in data.iterrows():
         prompt = row.prompt
+        subtask_target = row.subtask_target 
         keyframe_1 = row.keyframe_1
+        keyframe_2 = row.keyframe_2
+        keyframe_3 = row.keyframe_3
         recent_frame_1 = row.recent_frame_1
-        subtask_target = row.subtask_target
+        recent_frame_2 = row.recent_frame_2
+        recent_frame_3 = row.recent_frame_3
+        recent_frame_4 = row.recent_frame_4
         
-        if type(keyframe_1) == float:
-            keyframe_1 = np.zeros((180, 320, 3), dtype=np.uint8) # TODO: deal with nulls
-        if type(recent_frame_1) == float:
-            recent_frame_1 = np.zeros((180, 320, 3), dtype=np.uint8) # TODO: deal with nulls
+        # Handle null values by replacing with zero arrays
+        null_image = np.zeros((180, 320, 3), dtype=np.uint8)  # TODO(jenny): deal with nulls
+        frames = [keyframe_1, keyframe_2, keyframe_3, recent_frame_1, recent_frame_2, recent_frame_3, recent_frame_4]
+        frames = [null_image if type(frame) == float else frame for frame in frames]
+        keyframe_1, keyframe_2, keyframe_3, recent_frame_1, recent_frame_2, recent_frame_3, recent_frame_4 = frames
 
-        ds.add_frame(frame = {"recent_frame_1": recent_frame_1, "keyframe_1": keyframe_1, "prompt": prompt, "subtask_target": subtask_target}, task = prompt)
+        ds.add_frame(frame = {"recent_frame_1": recent_frame_1, "recent_frame_2": recent_frame_2, "recent_frame_3": recent_frame_3, "recent_frame_4": recent_frame_4, "keyframe_1": keyframe_1, "keyframe_2": keyframe_2, "keyframe_3": keyframe_3, "prompt": prompt, "subtask_target": subtask_target}, task = prompt)
     ds.save_episode()
         
 def main():
