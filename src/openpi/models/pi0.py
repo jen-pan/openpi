@@ -94,7 +94,7 @@ class Pi0Config(_model.BaseModelConfig):
 
     def __post_init__(self):
         if self.max_token_len is None:
-            object.__setattr__(self, "max_token_len", 200 if self.pi05 else 48)
+            object.__setattr__(self, "max_token_len", 400 if self.pi05 else 48)
         if self.discrete_state_input is None:
             object.__setattr__(self, "discrete_state_input", self.pi05)
 
@@ -314,7 +314,7 @@ class Pi0(_model.BaseModel):
         v_t = self.action_out_proj(suffix_out[:, -self.action_horizon :])
         return jnp.mean(jnp.square(v_t - u_t), axis=-1)
 
-    # TODO: need a subtask prediction inference function for policy serving
+    # TODO(jenny): need a subtask prediction inference function for policy serving
     def predict_subtask(self, obs: _model.Observation) -> at.Float[at.Array, "b"]:
         pass
 
@@ -403,7 +403,7 @@ class Pi0(_model.BaseModel):
         target_emb = self.PaliGemma.llm(observation.subtask_target, method="embed")
         in_emb = target_emb[:, :-1]
         target_tok = observation.subtask_target[:, 1:]
-        # ensure loss is only computed on meaningful tokens, not padding #TODO set up subtask_target_mask
+        # ensure loss is only computed on meaningful tokens, not padding
         target_mask = observation.subtask_target_mask[:, 1:]
 
         # prefix fully visible (zeros), subtask target causal (ones)
