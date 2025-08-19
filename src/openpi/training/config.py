@@ -128,11 +128,12 @@ class ModelTransformFactory(GroupFactory):
                         _transforms.ResizeImages(224, 224),
                         # conditional subtask tokenization; no-op unless subtask_target present
                         _transforms.TokenizeSubtask(
-                            _tokenizer.PaligemmaTokenizer(model_config.max_token_len),
+                            subtask_tokenizer=_tokenizer.PaligemmaTokenizer(model_config.max_subtask_token_len),
+                            prompt_tokenizer=_tokenizer.PaligemmaTokenizer(model_config.max_token_len),
                             discrete_state_input=False,
                         ),
                         _transforms.TokenizePrompt(
-                            _tokenizer.PaligemmaTokenizer(model_config.max_token_len),
+                            prompt_tokenizer=_tokenizer.PaligemmaTokenizer(model_config.max_token_len),
                             discrete_state_input=model_config.discrete_state_input,
                         ),
                         _transforms.PadStatesAndActions(model_config.action_dim),
@@ -445,27 +446,11 @@ class LeRobotDROIDDataConfig(DataConfigFactory):
 class LeRobotRoboMemoryDataConfig(DataConfigFactory):
     """
     This config is used to configure transforms that are applied at various parts of the data pipeline.
-    For your own dataset, you can copy this class and modify the transforms to match your dataset based on the
-    comments below.
+    For action prediction tasks with RoboMemory datasets that include actions.
     """
 
     @override
     def create(self, assets_dirs: pathlib.Path, model_config: _model.BaseModelConfig) -> DataConfig:
-        # repack_transform = _transforms.Group(
-        #     inputs=[
-        #         _transforms.RepackTransform(
-        #             {
-        #                 "observation/exterior_image_1_left": "observation/exterior_image_1_left",
-        #                 "observation/wrist_image_left": "observation/wrist_image_left",
-        #                 "observation/joint_position": "observation/joint_position",
-        #                 "observation/gripper_position": "observation/gripper_position",
-        #                 "actions": "actions",
-        #                 "prompt": "prompt",
-        #             }
-        #         )
-        #     ]
-        # )
-
         data_transforms = _transforms.Group(
             inputs=[robomemory_policy.RoboMemoryInputs(model_type=model_config.model_type)],
             outputs=[robomemory_policy.RoboMemoryOutputs()],
@@ -475,9 +460,34 @@ class LeRobotRoboMemoryDataConfig(DataConfigFactory):
 
         return dataclasses.replace(
             self.create_base_config(assets_dirs, model_config),
-            # repack_transforms=repack_transform,
             data_transforms=data_transforms,
             model_transforms=model_transforms,
+        )
+
+
+@dataclasses.dataclass(frozen=True)
+class LeRobotRoboMemorySubtaskDataConfig(DataConfigFactory):
+    """
+    This config is used for RoboMemory datasets that only contain subtask prediction data
+    (no actions column). Used for co-training scenarios where one dataset has actions and 
+    another only has subtask data.
+    """
+
+    @override
+    def create(self, assets_dirs: pathlib.Path, model_config: _model.BaseModelConfig) -> DataConfig:
+        data_transforms = _transforms.Group(
+            inputs=[robomemory_policy.RoboMemoryInputs(model_type=model_config.model_type)],
+            outputs=[robomemory_policy.RoboMemoryOutputs()],
+        )
+
+        model_transforms = ModelTransformFactory()(model_config)
+
+        return dataclasses.replace(
+            self.create_base_config(assets_dirs, model_config),
+            data_transforms=data_transforms,
+            model_transforms=model_transforms,
+            # Subtask-only dataset has no actions column, so no action sequences needed
+            action_sequence_keys=(),
         )
 
 @dataclasses.dataclass(frozen=True)
@@ -506,6 +516,8 @@ class TrainConfig:
 
     # Determines the data to be trained on.
     data: DataConfigFactory = dataclasses.field(default_factory=FakeDataConfig)
+    # Optional: separate data for subtask co-training.
+    subtask_data: DataConfigFactory | None = None
 
     # Base directory for config assets (e.g., norm stats).
     assets_base_dir: str = "./assets"
@@ -516,6 +528,8 @@ class TrainConfig:
     seed: int = 42
     # Global batch size.
     batch_size: int = 32
+    # Optional: separate batch size for subtask dataloader. If None, use batch_size.
+    subtask_batch_size: int = 32   
     # Number of workers to use for the data loader. Increasing this number will speed up data loading but
     # will increase memory and CPU usage.
     num_workers: int = 2
@@ -549,7 +563,7 @@ class TrainConfig:
     fsdp_devices: int = 1
 
     # Subtask co-training settings
-    loss_action_weight: float = 1.0 # TODO: experiment with this
+    loss_action_weight: float = 1.0 # TODO(jenny): experiment with this
     loss_subtask_weight: float = 1.0
 
     @property
@@ -929,9 +943,9 @@ _CONFIGS = [
         ema_decay=None,
     ),  
     TrainConfig(
-        name="pi_ft_droid_exclude_01_pct_vel_norm_train",
+        name="pi05_cotrain",
         model=pi0.Pi0Config(
-            pi05=True, action_dim=32, action_horizon=16, subtask_co_training=True
+            pi05=True, action_dim=32, action_horizon=16,
         ),
         data=LeRobotRoboMemoryDataConfig(
             repo_id="jennypan00/pi_ft_droid_exclude_01_pct_vel_norm_train",
@@ -941,9 +955,39 @@ _CONFIGS = [
                 asset_id="droid"
             ),
         ),
+        subtask_data=LeRobotRoboMemorySubtaskDataConfig(
+            repo_id="jennypan00/bin_sorting_hl_subtask_prediction_train_longer",
+            base_config=DataConfig(prompt_from_task=True),
+        ),
         weight_loader=weight_loaders.CheckpointWeightLoader("gs://openpi-assets-preview/checkpoints/pi05_droid/params"),
         num_train_steps=30_000,
-        batch_size=128,
+        batch_size=16,
+    ),
+    TrainConfig(
+        name="pi05_cotrain_lora",
+        model=pi0.Pi0Config(
+            pi05=True, action_dim=32, action_horizon=16,
+            paligemma_variant="gemma_2b_lora"
+        ),
+        data=LeRobotRoboMemoryDataConfig(
+            repo_id="jennypan00/pi_ft_droid_exclude_01_pct_vel_norm_train",
+            base_config=DataConfig(prompt_from_task=True),
+            assets=AssetsConfig( 
+                assets_dir= "gs://openpi-assets-preview/checkpoints/pi05_droid/assets",
+                asset_id="droid"
+            ),
+        ),
+        subtask_data=LeRobotRoboMemorySubtaskDataConfig(
+            repo_id="jennypan00/bin_sorting_hl_subtask_prediction_train_longer",
+            base_config=DataConfig(prompt_from_task=True),
+        ),
+        weight_loader=weight_loaders.CheckpointWeightLoader("gs://openpi-assets-preview/checkpoints/pi05_droid/params"),
+        num_train_steps=30_000,
+        batch_size=1,
+        freeze_filter=pi0.Pi0Config(
+            pi05=True, action_dim=32, action_horizon=16, paligemma_variant="gemma_2b_lora"
+        ).get_freeze_filter(),
+        ema_decay=None,
     ),
     #
     # ALOHA Sim configs. This config is used to demonstrate how to train on a simple simulated environment.
