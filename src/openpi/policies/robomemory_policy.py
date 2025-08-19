@@ -71,12 +71,17 @@ class RoboMemoryInputs(transforms.DataTransformFn):
             assert "subtask_target" in data, "subtask_target must be in data for subtask prediction task"
             assert self.model_type == _model.ModelType.PI05, "subtask prediction task only supported for PI05 model"
 
-            keyframe_1 = _parse_image(data["keyframe_1"])
+            keyframe_1 = _parse_image(data["keyframe_1"])            
+            keyframe_2 = _parse_image(data["keyframe_2"])
+            keyframe_3 = _parse_image(data["keyframe_3"])
             recent_1 = _parse_image(data["recent_frame_1"])
+            recent_2 = _parse_image(data["recent_frame_2"])
+            recent_3 = _parse_image(data["recent_frame_3"])
+            recent_4 = _parse_image(data["recent_frame_4"])
 
-            names = ("keyframe_1", "recent_frame_1", "right_wrist_0_rgb") # TODO: need to make this longer
-            images = (keyframe_1, recent_1, np.zeros_like(keyframe_1))
-            image_masks = (np.True_, np.True_, np.False_)
+            names = ("keyframe_1", "keyframe_2", "keyframe_3", "recent_frame_1", "recent_frame_2", "recent_frame_3", "recent_frame_4")
+            images = (keyframe_1, keyframe_2, keyframe_3, recent_1, recent_2, recent_3, recent_4)
+            image_masks = (np.True_, np.True_, np.True_, np.True_, np.True_, np.True_, np.True_)
             
             inputs = {
                 "prompt": prompt,
