@@ -279,33 +279,47 @@ def decode_subtask_predictions(batch, predicted_tokens, target_mask):
         paligemma_tokenizer = _tokenizer.PaligemmaTokenizer()
         observation, _ = batch
         if observation.subtask_target is None:
-            return ["NO_SUBTASK_TARGET"]
+            return ["NO_SUBTASK_TARGET"], ["NO_SUBTASK_TARGET"]
         
         if predicted_tokens is not None and target_mask is not None:
             num_samples_to_decode = min(20, predicted_tokens.shape[0])
             predicted_tokens_cpu = jax.device_get(predicted_tokens[:num_samples_to_decode])
             target_mask_cpu = jax.device_get(target_mask[:num_samples_to_decode])
+            subtask_target_cpu = jax.device_get(observation.subtask_target[:num_samples_to_decode])
+            subtask_target_mask_cpu = jax.device_get(observation.subtask_target_mask[:num_samples_to_decode])
             
-            decoded_texts = []
+            decoded_predictions = []
+            decoded_targets = []
             
             for i in range(num_samples_to_decode):
-                # Convert mask to numpy boolean array for indexing
+                # Decode predictions
                 mask_np = np.array(target_mask_cpu[i], dtype=bool)
                 valid_tokens = predicted_tokens_cpu[i][mask_np]
                 valid_tokens = valid_tokens[valid_tokens != 0]
                 
                 if len(valid_tokens) > 0:
                     decoded_text = paligemma_tokenizer._tokenizer.decode(valid_tokens.tolist())
-                    decoded_texts.append(f"PRED: {decoded_text}")
+                    decoded_predictions.append(decoded_text)
                 else:
-                    decoded_texts.append("EMPTY_PREDICTION")
+                    decoded_predictions.append("EMPTY_PREDICTION")
+                
+                # Decode targets
+                target_mask_np = np.array(subtask_target_mask_cpu[i], dtype=bool)
+                valid_target_tokens = subtask_target_cpu[i][target_mask_np]
+                valid_target_tokens = valid_target_tokens[valid_target_tokens != 0]
+                
+                if len(valid_target_tokens) > 0:
+                    decoded_target = paligemma_tokenizer._tokenizer.decode(valid_target_tokens.tolist())
+                    decoded_targets.append(decoded_target)
+                else:
+                    decoded_targets.append("EMPTY_TARGET")
                     
-            return decoded_texts
+            return decoded_predictions, decoded_targets
         else:
-            return ["PREDICTED_TOKENS_ARE_NONE"]
+            return ["PREDICTED_TOKENS_ARE_NONE"], ["PREDICTED_TOKENS_ARE_NONE"]
         
     except Exception as e:
-        return [f"DECODE_ERROR: {str(e)}"]
+        return [f"DECODE_ERROR: {str(e)}"], [f"DECODE_ERROR: {str(e)}"]
 
 
 def eval_step_subtask(
@@ -559,9 +573,11 @@ def main(config: _config.TrainConfig):
                     # Decode predictions from first batch for sanity checking (outside JIT)
                     if batch_idx == 0 and jax.process_index() == 0:
                         try:
-                            decoded_predictions = decode_subtask_predictions(se_batch, predicted_tokens, target_mask)
-                            for i, pred in enumerate(decoded_predictions):
-                                print(f"------EVAL SUBTASK SAMPLE {i}: {pred}")
+                            decoded_predictions, decoded_targets = decode_subtask_predictions(se_batch, predicted_tokens, target_mask)
+                            for i, (pred, target) in enumerate(zip(decoded_predictions, decoded_targets)):
+                                print(f"------EVAL SUBTASK SAMPLE {i}:")
+                                print(f"  PRED: {pred}")
+                                print(f"  TARGET: {target}")
                         except Exception as e:
                             print(f"------EVAL SUBTASK DECODE ERROR: {e}")
                     

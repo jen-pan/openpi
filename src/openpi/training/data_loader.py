@@ -127,11 +127,14 @@ class FakeDataset(Dataset):
 
 
 def create_torch_dataset(
-    data_config: _config.DataConfig, action_horizon: int, model_config: _model.BaseModelConfig, is_eval: bool = False
+    data_config: _config.DataConfig, action_horizon: int, model_config: _model.BaseModelConfig, is_eval: bool = False, task: str = "action_pred"
 ) -> Dataset:
     """Create a dataset for training."""
     if is_eval:
-        repo_id = "jennypan00/bin_sorting_hl_subtask_prediction_16_frames_eval" # hardcoded for now
+        if task == "action_pred":
+            repo_id = "jennypan00/pi0_fast_ft_droid_lerobot_test" 
+        else:
+            repo_id = "jennypan00/bin_sorting_hl_subtask_prediction_16_frames_eval"
     else:
         repo_id = data_config.repo_id
     if repo_id is None:
@@ -295,7 +298,7 @@ def create_torch_data_loader(
             execute in the main process.
         seed: The seed to use for shuffling the data.
     """
-    dataset = create_torch_dataset(data_config, action_horizon, model_config, is_eval=is_eval)
+    dataset = create_torch_dataset(data_config, action_horizon, model_config, is_eval=is_eval, task=task)
     dataset = transform_dataset(dataset, data_config, skip_norm_stats=skip_norm_stats)
 
     data_loader = TorchDataLoader(
