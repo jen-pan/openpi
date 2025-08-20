@@ -143,7 +143,7 @@ def create_torch_dataset(
     print(f"[bold green]{'EVAL' if is_eval else 'TRAIN'} DATASET META[/]")
     print(dataset_meta)
     dataset = lerobot_dataset.LeRobotDataset(
-        data_config.repo_id,
+        repo_id, 
         delta_timestamps={
             key: [t / dataset_meta.fps for t in range(action_horizon)] for key in data_config.action_sequence_keys
         },

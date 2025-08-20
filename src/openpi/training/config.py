@@ -539,7 +539,7 @@ class TrainConfig:
     # How often (in steps) to log training metrics.
     log_interval: int = 100
     # How often (in steps) to run evaluation.
-    eval_interval: int = 5
+    eval_interval: int = 100 
     # How often (in steps) to save checkpoints.
     save_interval: int = 1000
     # If set, any existing checkpoints matching step % keep_period == 0 will not be deleted.
