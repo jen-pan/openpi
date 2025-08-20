@@ -515,7 +515,7 @@ class TrainConfig:
     freeze_filter: tyro.conf.Suppress[Filter] = dataclasses.field(default_factory=nnx.Nothing)
 
     # Determines the data to be trained on.
-    data: DataConfigFactory = dataclasses.field(default_factory=FakeDataConfig)
+    action_data: DataConfigFactory | None = None
     # Optional: separate data for subtask co-training.
     subtask_data: DataConfigFactory | None = None
 
@@ -527,9 +527,9 @@ class TrainConfig:
     # Random seed that will be used by random generators during training.
     seed: int = 42
     # Global batch size.
-    batch_size: int = 32
+    action_batch_size: int = 16
     # Optional: separate batch size for subtask dataloader. If None, use batch_size.
-    subtask_batch_size: int = 32   
+    subtask_batch_size: int = 16   
     # Number of workers to use for the data loader. Increasing this number will speed up data loading but
     # will increase memory and CPU usage.
     num_workers: int = 2
@@ -539,7 +539,7 @@ class TrainConfig:
     # How often (in steps) to log training metrics.
     log_interval: int = 100
     # How often (in steps) to run evaluation.
-    eval_interval: int = 1000
+    eval_interval: int = 5
     # How often (in steps) to save checkpoints.
     save_interval: int = 1000
     # If set, any existing checkpoints matching step % keep_period == 0 will not be deleted.
@@ -563,8 +563,8 @@ class TrainConfig:
     fsdp_devices: int = 1
 
     # Subtask co-training settings
-    loss_action_weight: float = 1.0 # TODO(jenny): experiment with this
-    loss_subtask_weight: float = 1.0
+    action_loss_weight: float = 1.0 # TODO(jenny): experiment with this
+    subtask_loss_weight: float = 1.0
     # Ratio of subtask steps to main steps (e.g., 1 means 1:1, 2 means 1 subtask per 2 main steps)
     subtask_step_ratio: int = 1
 
@@ -598,7 +598,7 @@ _CONFIGS = [
     TrainConfig(
         name="pi0_aloha",
         model=pi0.Pi0Config(),
-        data=LeRobotAlohaDataConfig(
+        action_data=LeRobotAlohaDataConfig(
             assets=AssetsConfig(asset_id="trossen"),
         ),
         policy_metadata={"reset_pose": [0, -1.5, 1.5, 0, 0, 0]},
@@ -606,7 +606,7 @@ _CONFIGS = [
     TrainConfig(
         name="pi05_aloha",
         model=pi0.Pi0Config(pi05=True),
-        data=LeRobotAlohaDataConfig(
+        action_data=LeRobotAlohaDataConfig(
             assets=AssetsConfig(asset_id="trossen"),
         ),
         policy_metadata={"reset_pose": [0, -1.5, 1.5, 0, 0, 0]},
@@ -614,7 +614,7 @@ _CONFIGS = [
     TrainConfig(
         name="pi0_aloha_towel",
         model=pi0.Pi0Config(),
-        data=LeRobotAlohaDataConfig(
+        action_data=LeRobotAlohaDataConfig(
             assets=AssetsConfig(asset_id="trossen"),
             default_prompt="fold the towel",
         ),
@@ -623,7 +623,7 @@ _CONFIGS = [
     TrainConfig(
         name="pi0_aloha_tupperware",
         model=pi0.Pi0Config(),
-        data=LeRobotAlohaDataConfig(
+        action_data=LeRobotAlohaDataConfig(
             assets=AssetsConfig(asset_id="trossen"),
             default_prompt="open the tupperware and put the food on the plate",
         ),
@@ -635,7 +635,7 @@ _CONFIGS = [
     TrainConfig(
         name="pi0_droid",
         model=pi0.Pi0Config(action_horizon=10),
-        data=SimpleDataConfig(
+        action_data=SimpleDataConfig(
             assets=AssetsConfig(asset_id="droid"),
             data_transforms=lambda model: _transforms.Group(
                 inputs=[droid_policy.DroidInputs(model_type=ModelType.PI0)],
@@ -649,7 +649,7 @@ _CONFIGS = [
     TrainConfig(
         name="pi0_fast_droid",
         model=pi0_fast.Pi0FASTConfig(action_dim=8, action_horizon=10),
-        data=SimpleDataConfig(
+        action_data=SimpleDataConfig(
             assets=AssetsConfig(asset_id="droid"),
             data_transforms=lambda model: _transforms.Group(
                 inputs=[droid_policy.DroidInputs(model_type=ModelType.PI0_FAST)],
@@ -663,7 +663,7 @@ _CONFIGS = [
     TrainConfig(
         name="pi05_droid",
         model=pi0.Pi0Config(action_horizon=15, pi05=True),
-        data=SimpleDataConfig(
+        action_data=SimpleDataConfig(
             assets=AssetsConfig(asset_id="droid"),
             data_transforms=lambda model: _transforms.Group(
                 inputs=[droid_policy.DroidInputs(model_type=ModelType.PI05)],
@@ -692,7 +692,7 @@ _CONFIGS = [
         # Here you define the dataset you are training on. In this example we use the Libero
         # dataset. For your own dataset, you can change the repo_id to point to your dataset.
         # Also modify the DataConfig to use the new config you made for your dataset above.
-        data=LeRobotLiberoDataConfig(
+        action_data=LeRobotLiberoDataConfig(
             repo_id="physical-intelligence/libero",
             base_config=DataConfig(
                 # This flag determines whether we load the prompt (i.e. the task instruction) from the
@@ -713,7 +713,7 @@ _CONFIGS = [
         name="pi0_libero_low_mem_finetune",
         # Here is an example of loading a pi0 model for LoRA fine-tuning.
         model=pi0.Pi0Config(paligemma_variant="gemma_2b_lora", action_expert_variant="gemma_300m_lora"),
-        data=LeRobotLiberoDataConfig(
+        action_data=LeRobotLiberoDataConfig(
             repo_id="physical-intelligence/libero",
             base_config=DataConfig(prompt_from_task=True),
             extra_delta_transform=True,
@@ -743,7 +743,7 @@ _CONFIGS = [
         # two-arm robots. Generally, err on the lower side here first, and potentially increase the value if
         # you see many warnings being thrown during training.
         model=pi0_fast.Pi0FASTConfig(action_dim=7, action_horizon=10, max_token_len=180),
-        data=LeRobotLiberoDataConfig(
+        action_data=LeRobotLiberoDataConfig(
             repo_id="physical-intelligence/libero",
             base_config=DataConfig(prompt_from_task=True),
             extra_delta_transform=True,
@@ -759,7 +759,7 @@ _CONFIGS = [
         model=pi0_fast.Pi0FASTConfig(
             action_dim=7, action_horizon=10, max_token_len=180, paligemma_variant="gemma_2b_lora"
         ),
-        data=LeRobotLiberoDataConfig(
+        action_data=LeRobotLiberoDataConfig(
             repo_id="physical-intelligence/libero",
             base_config=DataConfig(prompt_from_task=True),
             extra_delta_transform=True,
@@ -777,12 +777,12 @@ _CONFIGS = [
     TrainConfig(
         name="pi05_libero",
         model=pi0.Pi0Config(pi05=True, action_horizon=10, discrete_state_input=False),
-        data=LeRobotLiberoDataConfig(
+        action_data=LeRobotLiberoDataConfig(
             repo_id="physical-intelligence/libero",
             base_config=DataConfig(prompt_from_task=True),
             extra_delta_transform=False,
         ),
-        batch_size=256,
+        action_batch_size=256,
         lr_schedule=_optimizer.CosineDecaySchedule(
             warmup_steps=10_000,
             peak_lr=5e-5,
@@ -804,7 +804,7 @@ _CONFIGS = [
     TrainConfig(
         name="pi0_aloha_pen_uncap",
         model=pi0.Pi0Config(),
-        data=LeRobotAlohaDataConfig(
+        action_data=LeRobotAlohaDataConfig(
             repo_id="physical-intelligence/aloha_pen_uncap_diverse",
             assets=AssetsConfig(
                 assets_dir="gs://openpi-assets/checkpoints/pi0_base/assets",
@@ -833,7 +833,7 @@ _CONFIGS = [
     TrainConfig(
         name="pi05_aloha_pen_uncap",
         model=pi0.Pi0Config(pi05=True),
-        data=LeRobotAlohaDataConfig(
+        action_data=LeRobotAlohaDataConfig(
             repo_id="physical-intelligence/aloha_pen_uncap_diverse",
             assets=AssetsConfig(
                 assets_dir="gs://openpi-assets-preview/checkpoints/pi05_may21_280k_v1/assets",
@@ -860,7 +860,7 @@ _CONFIGS = [
             "gs://openpi-assets-preview/checkpoints/pi05_may21_280k_v1/params"
         ),
         num_train_steps=20_000,
-        batch_size=64,
+        action_batch_size=64,
     ),
     #
     # Fine-tuning DROID configs.
@@ -875,7 +875,7 @@ _CONFIGS = [
             action_horizon=16,
             max_token_len=180,
         ),
-        data=RLDSDroidDataConfig(
+        action_data=RLDSDroidDataConfig(
             repo_id="droid",
             # Set this to the path to your DROID RLDS dataset (the parent directory of the `droid` directory).
             rlds_data_dir="<path_to_droid_rlds_dataset>",
@@ -889,7 +889,7 @@ _CONFIGS = [
             decay_lr=5e-5,
         ),
         num_train_steps=100_000,  # 100k steps should be sufficient, takes ~2 days on 8x H100s
-        batch_size=256,
+        action_batch_size=256,
         log_interval=100,
         save_interval=5000,
         keep_period=20_000,
@@ -905,7 +905,7 @@ _CONFIGS = [
             action_dim=32,  # pi05 is trained with 32-dim actions
             action_horizon=16,
         ),
-        data=LeRobotDROIDDataConfig(
+        action_data=LeRobotDROIDDataConfig(
             # Replace with your custom DROID LeRobot dataset repo id.
             repo_id="your_hf_username/my_droid_dataset",
             base_config=DataConfig(prompt_from_task=True),
@@ -917,7 +917,7 @@ _CONFIGS = [
         ),
         weight_loader=weight_loaders.CheckpointWeightLoader("gs://openpi-assets-preview/checkpoints/pi05_droid/params"),
         num_train_steps=20_000,
-        batch_size=32,
+        action_batch_size=32,
     ),
     TrainConfig(
         name="pi05_robomemory_low_mem_finetune",
@@ -928,7 +928,7 @@ _CONFIGS = [
             paligemma_variant="gemma_2b_lora"
             # max_token_len=180,
         ),
-        data=LeRobotRoboMemoryDataConfig(
+        action_data=LeRobotRoboMemoryDataConfig(
             repo_id="jennypan00/pi0_fast_ft_droid_lerobot_train",
             base_config=DataConfig(prompt_from_task=True),
             assets=AssetsConfig(
@@ -938,7 +938,7 @@ _CONFIGS = [
         ),
         weight_loader=weight_loaders.CheckpointWeightLoader("gs://openpi-assets-preview/checkpoints/pi05_droid/params"),
         num_train_steps=20_000,
-        batch_size=32,
+        action_batch_size=32,
         freeze_filter=pi0.Pi0Config(
             pi05=True, action_dim=32, action_horizon=16, paligemma_variant="gemma_2b_lora"
         ).get_freeze_filter(),
@@ -949,7 +949,7 @@ _CONFIGS = [
         model=pi0.Pi0Config(
             pi05=True, action_dim=32, action_horizon=16,
         ),
-        data=LeRobotRoboMemoryDataConfig(
+        action_data=LeRobotRoboMemoryDataConfig(
             repo_id="jennypan00/pi_ft_droid_exclude_01_pct_vel_norm_train",
             base_config=DataConfig(prompt_from_task=True),
             assets=AssetsConfig( 
@@ -958,12 +958,43 @@ _CONFIGS = [
             ),
         ),
         subtask_data=LeRobotRoboMemorySubtaskDataConfig(
-            repo_id="jennypan00/bin_sorting_hl_subtask_prediction_train_longer",
+            repo_id="jennypan00/bin_sorting_hl_subtask_prediction_16_frames",
             base_config=DataConfig(prompt_from_task=True),
         ),
         weight_loader=weight_loaders.CheckpointWeightLoader("gs://openpi-assets-preview/checkpoints/pi05_droid/params"),
         num_train_steps=30_000,
-        batch_size=16,
+        action_batch_size=16,
+    ),
+    TrainConfig(
+        name="pi05_cotrain_subtask_only",
+        model=pi0.Pi0Config(
+            pi05=True, action_dim=32, action_horizon=16,
+        ),
+        subtask_data=LeRobotRoboMemorySubtaskDataConfig(
+            repo_id="jennypan00/bin_sorting_hl_subtask_prediction_16_frames",
+            base_config=DataConfig(prompt_from_task=True),
+        ),
+        weight_loader=weight_loaders.CheckpointWeightLoader("gs://openpi-assets-preview/checkpoints/pi05_droid/params"),
+        num_train_steps=30_000,
+        action_batch_size=16,
+    ),
+    TrainConfig(
+        name="pi05_cotrain_subtask_only_lora",
+        model=pi0.Pi0Config(
+            pi05=True, action_dim=32, action_horizon=16,
+            paligemma_variant="gemma_2b_lora"
+        ),
+        subtask_data=LeRobotRoboMemorySubtaskDataConfig(
+            repo_id="jennypan00/bin_sorting_hl_subtask_prediction_16_frames_eval",
+            base_config=DataConfig(prompt_from_task=True),
+        ),
+        weight_loader=weight_loaders.CheckpointWeightLoader("gs://openpi-assets-preview/checkpoints/pi05_droid/params"),
+        num_train_steps=30_000,
+        action_batch_size=1, # still need to use action_batch_size for subtask data loader
+        freeze_filter=pi0.Pi0Config(
+            pi05=True, action_dim=32, action_horizon=16, paligemma_variant="gemma_2b_lora"
+        ).get_freeze_filter(),
+        ema_decay=None,
     ),
     TrainConfig(
         name="pi05_cotrain_lora",
@@ -971,7 +1002,7 @@ _CONFIGS = [
             pi05=True, action_dim=32, action_horizon=16,
             paligemma_variant="gemma_2b_lora"
         ),
-        data=LeRobotRoboMemoryDataConfig(
+        action_data=LeRobotRoboMemoryDataConfig(
             repo_id="jennypan00/pi_ft_droid_exclude_01_pct_vel_norm_train",
             base_config=DataConfig(prompt_from_task=True),
             assets=AssetsConfig( 
@@ -985,7 +1016,7 @@ _CONFIGS = [
         ),
         weight_loader=weight_loaders.CheckpointWeightLoader("gs://openpi-assets-preview/checkpoints/pi05_droid/params"),
         num_train_steps=30_000,
-        batch_size=1,
+        action_batch_size=1,
         freeze_filter=pi0.Pi0Config(
             pi05=True, action_dim=32, action_horizon=16, paligemma_variant="gemma_2b_lora"
         ).get_freeze_filter(),
@@ -997,7 +1028,7 @@ _CONFIGS = [
     TrainConfig(
         name="pi0_aloha_sim",
         model=pi0.Pi0Config(),
-        data=LeRobotAlohaDataConfig(
+        action_data=LeRobotAlohaDataConfig(
             repo_id="lerobot/aloha_sim_transfer_cube_human",
             default_prompt="Transfer cube",
             use_delta_joint_actions=False,
@@ -1010,8 +1041,8 @@ _CONFIGS = [
     #
     TrainConfig(
         name="debug",
-        data=FakeDataConfig(),
-        batch_size=2,
+        action_data=FakeDataConfig(),
+        action_batch_size=2,
         model=pi0.Pi0Config(paligemma_variant="dummy", action_expert_variant="dummy"),
         save_interval=100,
         overwrite=True,
@@ -1021,8 +1052,8 @@ _CONFIGS = [
     ),
     TrainConfig(
         name="debug_restore",
-        data=FakeDataConfig(),
-        batch_size=2,
+        action_data=FakeDataConfig(),
+        action_batch_size=2,
         model=pi0.Pi0Config(paligemma_variant="dummy", action_expert_variant="dummy"),
         weight_loader=weight_loaders.CheckpointWeightLoader("./checkpoints/debug/debug/9/params"),
         overwrite=True,
@@ -1033,8 +1064,8 @@ _CONFIGS = [
     TrainConfig(
         name="debug_pi05",
         model=pi0.Pi0Config(pi05=True, paligemma_variant="dummy", action_expert_variant="dummy"),
-        data=FakeDataConfig(),
-        batch_size=2,
+        action_data=FakeDataConfig(),
+        action_batch_size=2,
         num_train_steps=10,
         overwrite=True,
         exp_name="debug_pi05",
