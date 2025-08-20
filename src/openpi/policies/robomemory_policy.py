@@ -74,14 +74,23 @@ class RoboMemoryInputs(transforms.DataTransformFn):
             keyframe_1 = _parse_image(data["keyframe_1"])            
             keyframe_2 = _parse_image(data["keyframe_2"])
             keyframe_3 = _parse_image(data["keyframe_3"])
+            keyframe_4 = _parse_image(data["keyframe_4"])
+            keyframe_5 = _parse_image(data["keyframe_5"])
+            keyframe_6 = _parse_image(data["keyframe_6"])
             recent_1 = _parse_image(data["recent_frame_1"])
             recent_2 = _parse_image(data["recent_frame_2"])
             recent_3 = _parse_image(data["recent_frame_3"])
             recent_4 = _parse_image(data["recent_frame_4"])
+            recent_5 = _parse_image(data["recent_frame_5"])
+            recent_6 = _parse_image(data["recent_frame_6"])
+            recent_7 = _parse_image(data["recent_frame_7"])
+            recent_8 = _parse_image(data["recent_frame_8"])
+            recent_9 = _parse_image(data["recent_frame_9"])
+            recent_10 = _parse_image(data["recent_frame_10"])
 
-            names = ("keyframe_1", "keyframe_2", "keyframe_3", "recent_frame_1", "recent_frame_2", "recent_frame_3", "recent_frame_4")
-            images = (keyframe_1, keyframe_2, keyframe_3, recent_1, recent_2, recent_3, recent_4)
-            image_masks = (np.True_, np.True_, np.True_, np.True_, np.True_, np.True_, np.True_)
+            names = ("keyframe_1", "keyframe_2", "keyframe_3", "keyframe_4", "keyframe_5", "keyframe_6", "recent_frame_1", "recent_frame_2", "recent_frame_3", "recent_frame_4", "recent_frame_5", "recent_frame_6", "recent_frame_7", "recent_frame_8", "recent_frame_9", "recent_frame_10")
+            images = (keyframe_1, keyframe_2, keyframe_3, keyframe_4, keyframe_5, keyframe_6, recent_1, recent_2, recent_3, recent_4, recent_5, recent_6, recent_7, recent_8, recent_9, recent_10)
+            image_masks = (np.True_, np.True_, np.True_, np.True_, np.True_, np.True_, np.True_, np.True_, np.True_, np.True_, np.True_, np.True_, np.True_, np.True_, np.True_, np.True_)
             
             inputs = {
                 "prompt": prompt,

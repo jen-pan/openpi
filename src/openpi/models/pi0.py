@@ -388,7 +388,7 @@ class Pi0(_model.BaseModel):
         observation: _model.Observation,
         *,
         train: bool = False,
-    ) -> at.Float[at.Array, "*b"]:
+    ) -> tuple[at.Float[at.Array, "*b"], at.Int[at.Array, "*b seq_len"] | None, at.Bool[at.Array, "*b seq_len"] | None]:
         # creates image augmentations and sets up image masking (default is all images are attended to) 
         observation = _model.preprocess_observation(rng, observation, train=train, image_keys=list(_model.SUBTASK_PRED_IMAGE_KEYS))
 
@@ -425,4 +425,9 @@ class Pi0(_model.BaseModel):
 
         token_logp = jnp.take_along_axis(logp, target_tok[..., None], axis=-1)[..., 0]
         ce_loss = -jnp.sum(token_logp * target_mask, axis=-1) / jnp.clip(jnp.sum(target_mask, axis=-1), 1)
-        return ce_loss
+        if not train:
+            # Get predicted tokens by taking argmax of logits (greedy decoding)
+            predicted_tokens = jnp.argmax(logits, axis=-1)  # [batch, seq_len]
+            return ce_loss, predicted_tokens, target_mask
+        else:
+            return ce_loss, None, None 
