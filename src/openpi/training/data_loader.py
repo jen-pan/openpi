@@ -131,7 +131,7 @@ def create_torch_dataset(
 ) -> Dataset:
     """Create a dataset for training."""
     if is_eval:
-        repo_id = "jennypan00/pi0_fast_ft_droid_lerobot_test" # hardcoded for now
+        repo_id = "jennypan00/bin_sorting_hl_subtask_prediction_16_frames_eval" # hardcoded for now
     else:
         repo_id = data_config.repo_id
     if repo_id is None:
@@ -147,6 +147,7 @@ def create_torch_dataset(
         delta_timestamps={
             key: [t / dataset_meta.fps for t in range(action_horizon)] for key in data_config.action_sequence_keys
         },
+        tolerance_s=0.01, # TODO(jenny): this is a hack to load the dataset with increased tolerance in timestamp diff in subtask dataset
     )
 
     if data_config.prompt_from_task:
@@ -234,13 +235,13 @@ def create_data_loader(
     task: str = "action_pred",
 ) -> DataLoader[tuple[_model.Observation, _model.Actions]]:
     """Create a data loader for training."""
-    data_config = config.data.create(config.assets_dirs, config.model)
-    # print("------create_data_loader CONFIG------", data_config)
+    assert task in ["action_pred", "subtask_pred"], "Task must be either action_pred or subtask_pred"
+    data_config = config.action_data.create(config.assets_dirs, config.model) if task == "action_pred" else config.subtask_data.create(config.assets_dirs, config.model)
     if data_config.rlds_data_dir is not None:
         return create_rlds_data_loader(
             data_config,
             action_horizon=config.model.action_horizon,
-            batch_size=config.batch_size,
+            batch_size=config.action_batch_size if task == "action_pred" else config.subtask_batch_size,
             sharding=sharding,
             shuffle=shuffle,
             num_batches=num_batches,
@@ -250,7 +251,7 @@ def create_data_loader(
         data_config,
         model_config=config.model,
         action_horizon=config.model.action_horizon,
-        batch_size=config.batch_size,
+        batch_size=config.action_batch_size if task == "action_pred" else config.subtask_batch_size,
         sharding=sharding,
         shuffle=shuffle,
         num_batches=num_batches,
