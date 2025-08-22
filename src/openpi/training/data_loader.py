@@ -130,11 +130,11 @@ def create_torch_dataset(
     data_config: _config.DataConfig, action_horizon: int, model_config: _model.BaseModelConfig, is_eval: bool = False, task: str = "action_pred"
 ) -> Dataset:
     """Create a dataset for training."""
+
+    default_eval_repo_id = "jennypan00/pi0_fast_ft_droid_lerobot_test" if task == "action_pred" else "jennypan00/bin_sorting_hl_subtask_prediction_16_frames_test_150"
+    
     if is_eval:
-        if task == "action_pred":
-            repo_id = "jennypan00/pi0_fast_ft_droid_lerobot_test" 
-        else:
-            repo_id = "jennypan00/bin_sorting_hl_subtask_prediction_16_frames_eval"
+        repo_id = data_config.eval_repo_id if data_config.eval_repo_id is not None else default_eval_repo_id
     else:
         repo_id = data_config.repo_id
     if repo_id is None:
@@ -150,7 +150,7 @@ def create_torch_dataset(
         delta_timestamps={
             key: [t / dataset_meta.fps for t in range(action_horizon)] for key in data_config.action_sequence_keys
         },
-        tolerance_s=0.01, # TODO(jenny): this is a hack to load the dataset with increased tolerance in timestamp diff in subtask dataset
+        tolerance_s=0.01, # this is a hack to load the dataset with increased tolerance in timestamp diff in subtask dataset
     )
 
     if data_config.prompt_from_task:
@@ -311,7 +311,7 @@ def create_torch_data_loader(
         seed=seed,
         task=task,
     )
-
+    #TODO(jenny): use different data loader for subtask prediction
     return DataLoaderImpl(data_config, data_loader)
 
 
