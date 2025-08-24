@@ -275,7 +275,7 @@ class TokenizeSubtask(DataTransformFn):
             raise ValueError("Prompt is required")
         if not isinstance(prompt, str):
             prompt = prompt.item()
-        tokens, token_masks = self.prompt_tokenizer.tokenize(prompt, None)
+        tokens, token_masks = self.prompt_tokenizer.tokenize(prompt, None, is_target=False)
         # If no subtask target, do nothing (inference path)
         if (subtask_target := data.pop("subtask_target", None)) is None:
             return {
@@ -286,15 +286,15 @@ class TokenizeSubtask(DataTransformFn):
         else:
             if not isinstance(subtask_target, str):
                 subtask_target = subtask_target.item()
-                target_tokens, target_masks = self.subtask_tokenizer.tokenize(subtask_target, None)
+            target_tokens, target_masks = self.subtask_tokenizer.tokenize(subtask_target, None, is_target=True)
 
-                return {
-                    **data,
-                    "tokenized_prompt": tokens,
-                    "tokenized_prompt_mask": token_masks,
-                    "subtask_target": target_tokens,
-                    "subtask_target_mask": target_masks,
-                }
+            return {
+                **data,
+                "tokenized_prompt": tokens,
+                "tokenized_prompt_mask": token_masks,
+                "subtask_target": target_tokens,
+                "subtask_target_mask": target_masks,
+            }
 
 @dataclasses.dataclass(frozen=True)
 class TokenizeFASTInputs(DataTransformFn):

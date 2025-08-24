@@ -39,23 +39,12 @@ ACTION_PRED_IMAGE_KEYS = (
     "right_wrist_0_rgb",
 )
 
+KEYFRAMES = 2 
+RECENT_FRAMES = 6
+
 SUBTASK_PRED_IMAGE_KEYS = (
-    "keyframe_1",
-    "keyframe_2",
-    "keyframe_3",
-    "keyframe_4",
-    "keyframe_5",
-    "keyframe_6",
-    "recent_frame_1",
-    "recent_frame_2",
-    "recent_frame_3",
-    "recent_frame_4",
-    "recent_frame_5",
-    "recent_frame_6",
-    "recent_frame_7",
-    "recent_frame_8",
-    "recent_frame_9",
-    "recent_frame_10",
+    *[f"keyframe_{i}" for i in range(1, KEYFRAMES + 1)],
+    *[f"recent_frame_{i}" for i in range(1, RECENT_FRAMES + 1)],
 )
 
 
@@ -298,6 +287,8 @@ class BaseModel(nnx.Module, abc.ABC):
     @abc.abstractmethod
     def sample_actions(self, rng: at.KeyArrayLike, observation: Observation) -> Actions: ...
 
+    @abc.abstractmethod  # TODO(jenny): come back to this
+    def predict_subtask(self, rng: at.KeyArrayLike, observation: Observation, *, max_decoding_steps: int = 50, temperature: float = 0.0, tokenizer=None) -> list[str]: ...
 
 def restore_params(
     params_path: pathlib.Path | str,

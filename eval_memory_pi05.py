@@ -33,13 +33,9 @@ def load_policy(config, checkpoint_dir: str, task):
         logging.error(f"Failed to load policy: {e}")
         raise
 
-def prepare_data(df: pd.DataFrame) -> List[Dict[str, Any]]:
-    return df[COLUMNS].to_dict('records')
 
-
-def generate_predictions(policy, examples: List[Dict[str, Any]], ground_truths: List[str], prompts: List[str]) -> List[str]:
+def generate_predictions(policy, examples: List[Dict[str, Any]], ground_truths: List[str]) -> List[str]:
     predictions = []
-    
     for i, example in enumerate(tqdm(examples, desc="Generating predictions")):
         try:
             result = policy.infer_subtask(example)
@@ -48,17 +44,11 @@ def generate_predictions(policy, examples: List[Dict[str, Any]], ground_truths: 
             
             # Log each prediction as it's generated
             print(f"\n--- Example {i+1}/{len(examples)} ---")
-            print(f"Prompt: {prompts[i][:150]}{'...' if len(prompts[i]) > 150 else ''}")
             print(f"Ground Truth: {ground_truths[i]}")
             print(f"Prediction: {prediction}")
-            exact_match = prediction.strip().lower() == ground_truths[i].strip().lower()
-            print(f"Exact Match: {'✓' if exact_match else '✗'}")
                 
         except Exception as e:
-            import traceback
             logging.error(f"Error generating prediction for example {i}: {e}")
-            logging.error(f"Full traceback: {traceback.format_exc()}")
-            logging.error(f"Example data keys: {list(example.keys())}")
             predictions.append("")
     
     return predictions
@@ -78,7 +68,6 @@ def save_results(predictions: List[str], ground_truths: List[str], prompts: List
     results_df.to_csv(output_file, index=False)
     print(f"Results saved to {output_file}")
 
-
 def evaluate_subtask_predictions(
     data_file: str,
     checkpoint_dir: str,
@@ -96,8 +85,8 @@ def evaluate_subtask_predictions(
         raise
     
     if max_examples:
-        df = df.head(max_examples)
-        print(f"Using first {len(df)} examples")
+        df = df.sample(n=max_examples, random_state=42)
+        print(f"Using {len(df)} random examples")
 
     # Replace any null/empty image columns with a null image
     # TODO: this is a hack to handle the fact that the images are sometimes null. this is dealt with when uploaded to lerobot but im using unprocessed pkl files here
@@ -107,22 +96,18 @@ def evaluate_subtask_predictions(
 
     policy = load_policy(config, checkpoint_dir, task)
     
-    # Prepare all data at once
-    examples = prepare_data(df)
+    examples = df[COLUMNS].to_dict('records')
     ground_truths = df["subtask_target"].tolist()
-    prompts = df["prompt"].tolist()
     
-    # Generate predictions for all examples
     start_time = time.time()
-    predictions = generate_predictions(policy, examples, ground_truths, prompts)
+    predictions = generate_predictions(policy, examples, ground_truths)
     total_time = time.time() - start_time
     
     print(f"Generated {len(predictions)} predictions in {total_time:.2f}s")
     print(f"Average time per prediction: {total_time/len(predictions):.3f}s")
     
-    # Show sample results
+    # sample results
     if len(predictions) > 0:
-        print(f"Sample - Prompt: {prompts[0][:100]}...")
         print(f"Sample - Ground Truth: {ground_truths[0]}")
         print(f"Sample - Prediction: {predictions[0]}")
     

@@ -20,6 +20,7 @@ def create_trained_policy(
     sample_kwargs: dict[str, Any] | None = None,
     default_prompt: str | None = None,
     norm_stats: dict[str, transforms.NormStats] | None = None,
+    task: str = "action_pred"
 ) -> _policy.Policy:
     """Create a policy from a trained checkpoint.
 
@@ -34,14 +35,16 @@ def create_trained_policy(
         norm_stats: The norm stats to use for the policy. If not provided, the norm stats will be loaded
             from the checkpoint directory.
     """
+    assert task in ["action_pred", "subtask_pred"], "Task must be either action_pred or subtask_pred"
     repack_transforms = repack_transforms or transforms.Group()
     checkpoint_dir = download.maybe_download(str(checkpoint_dir))
 
     logging.info("Loading model...")
     model = train_config.model.load(_model.restore_params(checkpoint_dir / "params", dtype=jnp.bfloat16))
 
-    data_config = train_config.action_data.create(train_config.assets_dirs, train_config.model)
-    if norm_stats is None:
+    data_config = train_config.action_data.create(train_config.assets_dirs, train_config.model) if task == "action_pred" else train_config.subtask_data.create(train_config.assets_dirs, train_config.model)
+
+    if norm_stats is None and task != "subtask_pred":
         # We are loading the norm stats from the checkpoint instead of the config assets dir to make sure
         # that the policy is using the same normalization stats as the original training process.
         if data_config.asset_id is None:

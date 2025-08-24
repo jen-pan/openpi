@@ -164,6 +164,8 @@ class Pi0(_model.BaseModel):
     def __init__(self, config: Pi0Config, rngs: nnx.Rngs):
         super().__init__(config.action_dim, config.action_horizon, config.max_token_len)
         self.pi05 = config.pi05
+        self.max_subtask_token_len = config.max_subtask_token_len
+        # Add tokenizer for decoding subtask predictions
         paligemma_config = _gemma.get_config(config.paligemma_variant)
         action_expert_config = _gemma.get_config(config.action_expert_variant)
         # TODO: rewrite gemma in NNX. For now, use bridge.
@@ -303,10 +305,7 @@ class Pi0(_model.BaseModel):
         input_mask = jnp.concatenate([prefix_mask, suffix_mask], axis=1)
         ar_mask = jnp.concatenate([prefix_ar_mask, suffix_ar_mask], axis=0)
         
-        print(f"prefix_mask shape: {prefix_mask.shape}")  
-        print(f"suffix_mask shape: {suffix_mask.shape}")
         attn_mask = make_attn_mask(input_mask, ar_mask)
-        print(f"attn_mask shape: {attn_mask.shape}")
         positions = jnp.cumsum(input_mask, axis=1) - 1
         (prefix_out, suffix_out), _ = self.PaliGemma.llm(
             [prefix_tokens, suffix_tokens], mask=attn_mask, positions=positions, adarms_cond=[None, adarms_cond]
@@ -314,9 +313,119 @@ class Pi0(_model.BaseModel):
         v_t = self.action_out_proj(suffix_out[:, -self.action_horizon :])
         return jnp.mean(jnp.square(v_t - u_t), axis=-1)
 
-    # TODO(jenny): need a subtask prediction inference function for policy serving
-    def predict_subtask(self, obs: _model.Observation) -> at.Float[at.Array, "b"]:
-        pass
+    @override
+    def predict_subtask(
+        self, 
+        rng: at.KeyArrayLike,
+        observation: _model.Observation, 
+        *,
+        max_decoding_steps: int = 50,
+        temperature: float = 0.0,
+        tokenizer = None
+    ) -> list[str]:
+        """Generate subtask tokens using simple autoregressive decoding with KV caching."""
+        observation = _model.preprocess_observation(rng, observation, train=False, image_keys=list(_model.SUBTASK_PRED_IMAGE_KEYS))
+        # Embed prefix and fill KV cache once
+        # prefix_tokens: bs x token_len x emb_dim
+        # prefix_mask: bs x token_len
+        # prefix_ar_mask (all false): token_len
+        prefix_tokens, prefix_mask, prefix_ar_mask = self.embed_prefix(observation)
+        batch_size = observation.tokenized_prompt.shape[0]
+        
+        # Prefill KV cache with prefix
+        # prefix_attn_mask: bs x token_len x token_len
+        prefix_attn_mask = make_attn_mask(prefix_mask, prefix_ar_mask)
+        # positions: bs x token_len, 0 to number of non-padding tokens
+        positions = jnp.cumsum(prefix_mask, axis=1) - 1
+        (prefix_out, _), kv_cache = self.PaliGemma.llm(
+            [prefix_tokens, None], 
+            mask=prefix_attn_mask, 
+            positions=positions,
+            adarms_cond=None
+        )
+        # prefix_out: bs x token_len x emb_dim
+        # kv cache: 18 x bs x token_len x 1 x emb_dim?? (18, 1, 4496, 1, 256)
+        
+        # Track number of valid prefix tokens per batch element
+        valid_prefix_len = jnp.sum(prefix_mask, axis=-1)
+
+        generated_tokens = []
+        current_rng = rng
+        current_cache = kv_cache
+        
+        for step in range(max_decoding_steps):
+            current_rng, step_rng = jax.random.split(current_rng)
+            print("----------STEP----------", step)
+            # For first token, use last valid hidden state from prefix; otherwise embed last token
+            if step == 0:
+                b_idx = jnp.arange(batch_size)
+                last_valid_idx = (valid_prefix_len - 1)
+                last_hidden = prefix_out[b_idx, last_valid_idx][:, None, :]
+            else:
+                # Subsequent steps: embed and process last token with cache
+                last_token = generated_tokens[-1][:, None]  # Last generated token
+                print("----------LAST TOKEN----------", last_token)
+                token_emb = self.PaliGemma.llm(last_token, method="embed")
+                # Attention mask: respect prefix padding, allow attending to all generated tokens
+                gen_mask = jnp.ones((batch_size, step), dtype=jnp.bool_)
+                token_mask = jnp.concatenate([prefix_mask, gen_mask], axis=-1)  # (b, prefix_len + step)
+                token_mask = token_mask[:, None, :]  # (b, 1, S)
+                token_pos = valid_prefix_len[:, None] + step - 1
+
+                # token_out: bs x 1 x emb_dim
+                (token_out, _), current_cache = self.PaliGemma.llm(
+                    [token_emb, None],
+                    mask=token_mask,
+                    positions=token_pos,
+                    kv_cache=current_cache,
+                    adarms_cond=None
+                )
+                
+                last_hidden = token_out
+            
+            logits = self.PaliGemma.llm(last_hidden.astype(jnp.float32), method="decode")
+            logits = logits[:, 0, :]  # [batch, vocab_size]
+            next_token = jnp.argmax(logits, axis=-1)
+            generated_tokens.append(next_token)
+            # Early stopping: check if all sequences have EOS token (1)
+            if jnp.all(next_token == 1):
+                break
+        
+        # Convert list to array
+        if generated_tokens:
+            current_tokens = jnp.stack(generated_tokens, axis=1)  # [batch, seq_len]
+        else:
+            current_tokens = jnp.zeros((batch_size, 0), dtype=jnp.int32)
+        
+        # Convert to strings
+        final_tokens_cpu = jax.device_get(current_tokens)
+        decoded_strings = []
+        
+        for i in range(batch_size):
+            tokens = final_tokens_cpu[i]
+            
+            # Truncate at EOS
+            eos_positions = jnp.where(tokens == 1)[0]
+            print("----------EOS POSITIONS----------", eos_positions)
+            if len(eos_positions) > 0:
+                tokens = tokens[:eos_positions[0]]
+            
+            # Remove padding and decode
+            print("----------TOKENS----------", tokens)
+            valid_tokens = tokens[tokens != 0]
+            if len(valid_tokens) > 0:
+                try:
+                    if tokenizer is None:
+                        # Fallback: create tokenizer if not provided
+                        from openpi.models import tokenizer as _tokenizer
+                        tokenizer = _tokenizer.PaligemmaTokenizer(max_len=self.max_subtask_token_len)
+                    decoded_text = tokenizer._tokenizer.decode(valid_tokens.tolist())
+                    decoded_strings.append(decoded_text)
+                except Exception:
+                    decoded_strings.append("")
+            else:
+                decoded_strings.append("")
+        return decoded_strings
 
     @override
     def sample_actions( 
@@ -391,12 +500,13 @@ class Pi0(_model.BaseModel):
     ) -> tuple[at.Float[at.Array, "*b"], at.Int[at.Array, "*b seq_len"] | None, at.Bool[at.Array, "*b seq_len"] | None]:
         # creates image augmentations and sets up image masking (default is all images are attended to) 
         observation = _model.preprocess_observation(rng, observation, train=train, image_keys=list(_model.SUBTASK_PRED_IMAGE_KEYS))
-
         # embed obs.images (keyframes + recent frames) and obs.tokenized_prompt (QA prompt) using PaliGemma tokenizer
         # prefix_mask masks out invalid images and padding text tokens
         # prefix_ar_mask is all zeros, so prefix is fully visible internally
         prefix_tokens, prefix_mask, prefix_ar_mask = self.embed_prefix(observation)
-
+        print("----------PREFIX TOKENS----------", prefix_tokens.shape)
+        print("----------PREFIX MASK----------", prefix_mask.shape)
+        print("----------PREFIX AR MASK----------", prefix_ar_mask.shape)
         # Prepare subtask target tokens
         if observation.subtask_target is None or observation.subtask_target_mask is None:
             raise ValueError("subtask_target and subtask_target_mask are required for subtask loss")
@@ -408,15 +518,16 @@ class Pi0(_model.BaseModel):
 
         # prefix fully visible (zeros), subtask target causal (ones)
         target_len = in_emb.shape[1]
-        zeros = jnp.zeros(prefix_mask.shape[1], dtype=jnp.int32)
-        ones = jnp.ones(target_len, dtype=jnp.int32)
+        zeros = jnp.zeros(prefix_mask.shape[1], dtype=jnp.bool_)
+        ones = jnp.ones(target_len, dtype=jnp.bool_)
         ar_mask = jnp.concatenate([zeros, ones], axis=0)
-
+        print("----------AR MASK----------", ar_mask)
         input_mask = jnp.concatenate([prefix_mask, target_mask], axis=1)
         embedded = jnp.concatenate([prefix_tokens, in_emb], axis=1)
         attn_mask = make_attn_mask(input_mask, ar_mask)
         positions = jnp.cumsum(input_mask, axis=1) - 1
-
+        print("----------ATTN MASK----------", attn_mask)
+        print("----------POSITIONS----------", positions)
         # forward only through Paligemma expert
         (lang_out, _), _ = self.PaliGemma.llm([embedded, None], mask=attn_mask, positions=positions, adarms_cond=None)
         subtask_prediction = lang_out[:, -target_len:]
