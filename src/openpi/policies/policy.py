@@ -11,7 +11,7 @@ import jax.numpy as jnp
 import numpy as np
 from openpi_client import base_policy as _base_policy
 from typing_extensions import override
-
+from openpi.models import tokenizer as _tokenizer    
 from openpi import transforms as _transforms
 from openpi.models import model as _model
 from openpi.shared import array_typing as at
@@ -31,7 +31,11 @@ class Policy(BasePolicy):
         sample_kwargs: dict[str, Any] | None = None,
         metadata: dict[str, Any] | None = None,
     ):
+        self._model = model
         self._sample_actions = nnx_utils.module_jit(model.sample_actions)
+        self._predict_subtask = model.predict_subtask
+        max_len = getattr(model, 'max_subtask_token_len', 50)
+        self._tokenizer = _tokenizer.PaligemmaTokenizer(max_len=max_len) 
         self._input_transform = _transforms.compose(transforms)
         self._output_transform = _transforms.compose(output_transforms)
         self._rng = rng or jax.random.key(0)
@@ -66,10 +70,28 @@ class Policy(BasePolicy):
     def metadata(self) -> dict[str, Any]:
         return self._metadata
 
-    #TODO(jenny): create an infer_subtask(self, obs:dict) for subtask prediction
     def infer_subtask(self, obs: dict) -> dict:
-        # uses predict_subtask from models/pi0.py
-        raise NotImplementedError("Subtask prediction is not implemented for this policy")
+        inputs = jax.tree.map(lambda x: x, obs)
+        inputs = self._input_transform(inputs)
+        inputs = jax.tree.map(lambda x: jnp.asarray(x)[np.newaxis, ...], inputs)
+
+        observation = _model.Observation.from_dict(inputs)
+        
+        start_time = time.monotonic()
+        self._rng, sample_rng = jax.random.split(self._rng)
+        decoded_strings = self._predict_subtask(sample_rng, observation, tokenizer=self._tokenizer)
+        decoded_text = decoded_strings[0] if isinstance(decoded_strings, (list, tuple)) else decoded_strings
+
+        outputs = {
+            "subtask_target": decoded_text,
+        }
+        model_time = time.monotonic() - start_time
+
+        outputs = self._output_transform(outputs)
+        outputs["policy_timing"] = {
+            "infer_ms": model_time * 1000,
+        }
+        return outputs
 
 class PolicyRecorder(_base_policy.BasePolicy):
     """Records the policy's behavior to disk."""
