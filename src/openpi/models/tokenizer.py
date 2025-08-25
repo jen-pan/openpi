@@ -50,7 +50,7 @@ class PaligemmaTokenizer:
 
 
 class FASTTokenizer:
-    def __init__(self, max_len: int = 256, fast_tokenizer_path: str = "physical-intelligence/fast"):
+    def __init__(self, max_len: int = 256, fast_tokenizer_path: str = "physical-intelligence/fast", task="action_pred"):
         self._max_len = max_len
 
         # Download base PaliGemma tokenizer
@@ -61,34 +61,47 @@ class FASTTokenizer:
         # Instantiate FAST tokenizer
         self._fast_tokenizer = AutoProcessor.from_pretrained(fast_tokenizer_path, trust_remote_code=True)
         self._fast_skip_tokens = 128  # Skip last 128 tokens in PaliGemma vocab since they are special tokens
-
+        self._task = task
     def tokenize(
-        self, prompt: str, state: np.ndarray, actions: np.ndarray | None
+        self, prompt: str, state: np.ndarray, actions: np.ndarray | None, subtask_target: str | None
     ) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
-        cleaned_text = prompt.lower().strip().replace("_", " ")
+        assert (actions is None) != (subtask_target is None), "Exactly one of actions or subtask_target must be provided"
+        assert self._task in ["action_pred", "subtask_pred"], "Task must be either action_pred or subtask_pred"
 
-        # Convention: state gets discretized into 256 discrete bins (assumed range after normalization: [-1, 1])
-        discretized_state = np.digitize(state, bins=np.linspace(-1, 1, 256 + 1)[:-1]) - 1
+        if self._task == "action_pred":
+            cleaned_text = prompt.lower().strip().replace("_", " ")
+            # Convention: state gets discretized into 256 discrete bins (assumed range after normalization: [-1, 1])
+            discretized_state = np.digitize(state, bins=np.linspace(-1, 1, 256 + 1)[:-1]) - 1
 
-        # Convention: prefix includes prompt and string-representation of state, followed by ';'
-        state_str = " ".join(map(str, discretized_state))
-        prefix = f"Task: {cleaned_text}, State: {state_str};\n"
-        prefix_tokens = self._paligemma_tokenizer.encode(prefix, add_bos=True)
+            # Convention: prefix includes prompt and string-representation of state, followed by ';'
+            state_str = " ".join(map(str, discretized_state))
+            prefix = f"Task: {cleaned_text}, State: {state_str};\n"
+            prefix_tokens = self._paligemma_tokenizer.encode(prefix, add_bos=True)
 
-        if actions is not None:
-            # Tokenize actions with FAST tokenizer --> map to last tokens in PaliGemma vocab
-            action_tokens = self._fast_tokenizer(actions[None])[0]
-            action_tokens_in_pg = self._act_tokens_to_paligemma_tokens(action_tokens)
+            if actions is not None:
+                # Tokenize actions with FAST tokenizer --> map to last tokens in PaliGemma vocab
+                action_tokens = self._fast_tokenizer(actions[None])[0]
+                action_tokens_in_pg = self._act_tokens_to_paligemma_tokens(action_tokens)
 
-            # Convention: postfix contains 'Action:' followed by FAST tokens, followed by '|'
+                # Convention: postfix contains 'Action:' followed by FAST tokens, followed by '|'
+                postfix_tokens = (
+                    self._paligemma_tokenizer.encode("Action: ")
+                    + action_tokens_in_pg.tolist()
+                    + self._paligemma_tokenizer.encode("|", add_eos=True)
+                )
+            else:
+                postfix_tokens = []
+
+        elif self._task == "subtask_pred":
+            cleaned_text = prompt.lower().strip().replace("_", " ")
+            prefix = f"Task: {cleaned_text};\n"
+            prefix_tokens = self._paligemma_tokenizer.encode(prefix, add_bos=True)
             postfix_tokens = (
-                self._paligemma_tokenizer.encode("Action: ")
-                + action_tokens_in_pg.tolist()
+                self._paligemma_tokenizer.encode("Primitive: ")
+                + self._paligemma_tokenizer.encode(subtask_target)
                 + self._paligemma_tokenizer.encode("|", add_eos=True)
             )
-        else:
-            postfix_tokens = []
-
+        
         # Create output token sequence & masks
         # AR mask is 0 on prefix (bidirectional attention) and 1 on postfix (causal attention to all previous tokens)
         tokens = prefix_tokens + postfix_tokens
@@ -99,11 +112,12 @@ class FASTTokenizer:
         # Pad tokens to max length
         tokens_len = len(tokens)
         if tokens_len < self._max_len:
-            padding = [False] * (self._max_len - tokens_len)
-            tokens = tokens + padding
-            token_mask = token_mask + padding
-            ar_mask = ar_mask + padding
-            loss_mask = loss_mask + padding
+            padding_len = self._max_len - tokens_len
+            # Use 0 as padding token for tokens (numeric), False for masks (boolean)
+            tokens = tokens + [0] * padding_len
+            token_mask = token_mask + [False] * padding_len
+            ar_mask = ar_mask + [0] * padding_len
+            loss_mask = loss_mask + [False] * padding_len
         else:
             if len(tokens) > self._max_len:
                 logging.warning(

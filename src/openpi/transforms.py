@@ -307,8 +307,10 @@ class TokenizeFASTInputs(DataTransformFn):
         if not isinstance(prompt, str):
             prompt = prompt.item()
 
-        state, actions = data["state"], data.get("actions")
-        tokens, token_mask, ar_mask, loss_mask = self.tokenizer.tokenize(prompt, state, actions)
+        state = data.get("state", None)
+        actions = data.get("actions", None)
+        subtask_target = data.pop("subtask_target", None)  # Use pop instead of get to remove from dict
+        tokens, token_mask, ar_mask, loss_mask = self.tokenizer.tokenize(prompt, state, actions, subtask_target)
         return {
             **data,
             "tokenized_prompt": tokens,

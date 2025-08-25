@@ -16,12 +16,12 @@ source ~/.bashrc
 conda activate openpi311
 cd /iris/u/jrpan/openpi
 
-DATA_FILE="/iris/u/jrpan/openpi/subtask_prediction_df_16_frames_test_150.pkl"
-CHECKPOINT_DIR="/iris/u/jrpan/openpi/checkpoints/pi05_cotrain/pi05_cotrain_full_0820/9000"
+DATA_FILE="/iris/u/jrpan/openpi/subtask_prediction_df_16_frames_test.pkl"
+CHECKPOINT_DIR="/iris/u/jrpan/openpi/checkpoints/pi05_cotrain_subtask_only/pi05_cotrain_0820/9000"
 CONFIG="pi05_cotrain"
 TASK="subtask_pred"
-OUTPUT_FILE="/iris/u/jrpan/openpi/subtask_pred_results.csv"
-MAX_EXAMPLES=5
+OUTPUT_FILE="/iris/u/jrpan/openpi/subtask_pred_results_subtask_only_test.csv"
+MAX_EXAMPLES=100
 
 python /iris/u/jrpan/openpi/eval_memory_pi05.py \
   --data_file "$DATA_FILE" \
@@ -30,5 +30,3 @@ python /iris/u/jrpan/openpi/eval_memory_pi05.py \
   --task "$TASK" \
   --max_examples $MAX_EXAMPLES \
   --output_file "$OUTPUT_FILE"
-
-echo "Results saved to: $OUTPUT_FILE"

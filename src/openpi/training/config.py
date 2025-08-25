@@ -142,7 +142,7 @@ class ActionModelTransformFactory(GroupFactory):
                         _transforms.InjectDefaultPrompt(self.default_prompt),
                         _transforms.ResizeImages(224, 224),
                         _transforms.TokenizeFASTInputs(
-                            _tokenizer.FASTTokenizer(model_config.max_token_len),
+                            _tokenizer.FASTTokenizer(model_config.max_token_len, task="action_pred"),
                         ),
                     ],
                     outputs=[
@@ -160,7 +160,6 @@ class SubtaskModelTransformFactory(GroupFactory):
     """Creates model transforms specifically for subtask prediction tasks."""
     def __call__(self, model_config: _model.BaseModelConfig) -> _transforms.Group:
         if model_config.model_type == _model.ModelType.PI05:
-            assert isinstance(model_config, pi0.Pi0Config)
             return _transforms.Group(
                 inputs=[
                     _transforms.ResizeImages(224, 224),
@@ -169,6 +168,16 @@ class SubtaskModelTransformFactory(GroupFactory):
                         prompt_tokenizer=_tokenizer.PaligemmaTokenizer(model_config.max_token_len),
                     ),
                     # HACK: needed for unified data loader under DataLoaderImpl which always yields a tuple (Observation, Actions)
+                    _transforms.CreateDummyActions(model_config.action_horizon, model_config.action_dim)
+                ],
+            )
+        elif model_config.model_type == _model.ModelType.PI0_FAST:
+            return _transforms.Group(
+                inputs=[
+                    _transforms.ResizeImages(224, 224),
+                    _transforms.TokenizeFASTInputs(
+                        _tokenizer.FASTTokenizer(model_config.max_token_len, task="subtask_pred"),
+                    ),
                     _transforms.CreateDummyActions(model_config.action_horizon, model_config.action_dim)
                 ],
             )
