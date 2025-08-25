@@ -89,11 +89,8 @@ def save_state(
 def restore_state(
     checkpoint_manager: ocp.CheckpointManager,
     state: training_utils.TrainState,
-    data_loader: _data_loader.DataLoader,
     step: int | None = None,
 ) -> training_utils.TrainState:
-    del data_loader
-
     with at.disable_typechecking():
         # Split params that can be used for inference into a separate item.
         train_state, params = _split_params(state)

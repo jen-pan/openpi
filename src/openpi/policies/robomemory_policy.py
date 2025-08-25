@@ -29,11 +29,12 @@ def _parse_image(image) -> np.ndarray:
 
 
 @dataclasses.dataclass(frozen=True)
-class RoboMemoryInputs(transforms.DataTransformFn):
-    # Determines which model will be used.
+class RoboMemoryActionInputs(transforms.DataTransformFn):
     model_type: _model.ModelType
 
     def __call__(self, data: dict) -> dict:
+        assert "prompt" in data, "prompt must be in data for action prediction"
+
         gripper_pos = np.asarray(data["gripper_position"])
         if gripper_pos.ndim == 0:
             # Ensure gripper position is a 1D array, not a scalar, so we can concatenate with joint positions
@@ -43,7 +44,7 @@ class RoboMemoryInputs(transforms.DataTransformFn):
         base_image = _parse_image(data["exterior_image_1_left"])
         wrist_image = _parse_image(data["wrist_image_left"])
 
-        match self.model_type:
+        match self.model_type: 
             case _model.ModelType.PI0 | _model.ModelType.PI05:
                 names = ("base_0_rgb", "left_wrist_0_rgb", "right_wrist_0_rgb")
                 images = (base_image, wrist_image, np.zeros_like(base_image))
@@ -53,29 +54,22 @@ class RoboMemoryInputs(transforms.DataTransformFn):
                 # We don't mask out padding images for FAST models.
                 images = (base_image, np.zeros_like(base_image), wrist_image)
                 image_masks = (np.True_, np.True_, np.True_)
-            case _:
-                raise ValueError(f"Unsupported model type: {self.model_type}")
 
         inputs = {
+            "prompt": data["prompt"] if isinstance(data["prompt"], str) else data["prompt"].decode("utf-8"),
             "state": state,
             "image": dict(zip(names, images, strict=True)),
             "image_mask": dict(zip(names, image_masks, strict=True)),
         }
 
-
         if "actions" in data:
             inputs["actions"] = np.array(data["actions"])
-
-        if "prompt" in data:
-            if isinstance(data["prompt"], bytes):
-                data["prompt"] = data["prompt"].decode("utf-8")
-            inputs["prompt"] = data["prompt"]
 
         return inputs
 
 
 @dataclasses.dataclass(frozen=True)
-class RoboMemoryOutputs(transforms.DataTransformFn):
+class RoboMemoryActionOutputs(transforms.DataTransformFn):
     """
     This class is used to convert outputs from the model back the the dataset specific format. It is
     used for inference only.
@@ -86,6 +80,4 @@ class RoboMemoryOutputs(transforms.DataTransformFn):
     def __call__(self, data: dict) -> dict:
         # Only return the first N actions -- since we padded actions above to fit the model action
         # dimension, we need to now parse out the correct number of actions in the return dict.
-        # For Libero, we only return the first 7 actions (since the rest is padding).
-        # For your own dataset, replace `7` with the action dimension of your dataset.
         return {"actions": np.asarray(data["actions"][:, :8])}

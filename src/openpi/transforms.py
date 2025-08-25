@@ -246,7 +246,7 @@ class AbsoluteActions(DataTransformFn):
 
 @dataclasses.dataclass(frozen=True)
 class TokenizePrompt(DataTransformFn):
-    tokenizer: _tokenizer.PaligemmaTokenizer
+    prompt_tokenizer: _tokenizer.PaligemmaTokenizer
     discrete_state_input: bool = False
 
     def __call__(self, data: DataDict) -> DataDict:
@@ -262,9 +262,39 @@ class TokenizePrompt(DataTransformFn):
         if not isinstance(prompt, str):
             prompt = prompt.item()
 
-        tokens, token_masks = self.tokenizer.tokenize(prompt, state)
+        tokens, token_masks = self.prompt_tokenizer.tokenize(prompt, state)
         return {**data, "tokenized_prompt": tokens, "tokenized_prompt_mask": token_masks}
 
+@dataclasses.dataclass(frozen=True)
+class TokenizeSubtask(DataTransformFn):
+    subtask_tokenizer: _tokenizer.PaligemmaTokenizer
+    prompt_tokenizer: _tokenizer.PaligemmaTokenizer
+
+    def __call__(self, data: DataDict) -> DataDict:
+        if (prompt := data.pop("prompt", None)) is None:
+            raise ValueError("Prompt is required")
+        if not isinstance(prompt, str):
+            prompt = prompt.item()
+        tokens, token_masks = self.prompt_tokenizer.tokenize(prompt, None, is_target=False)
+        # If no subtask target, do nothing (inference path)
+        if (subtask_target := data.pop("subtask_target", None)) is None:
+            return {
+                **data,
+                "tokenized_prompt": tokens,
+                "tokenized_prompt_mask": token_masks,
+            }
+        else:
+            if not isinstance(subtask_target, str):
+                subtask_target = subtask_target.item()
+            target_tokens, target_masks = self.subtask_tokenizer.tokenize(subtask_target, None, is_target=True)
+
+            return {
+                **data,
+                "tokenized_prompt": tokens,
+                "tokenized_prompt_mask": token_masks,
+                "subtask_target": target_tokens,
+                "subtask_target_mask": target_masks,
+            }
 
 @dataclasses.dataclass(frozen=True)
 class TokenizeFASTInputs(DataTransformFn):
@@ -319,8 +349,8 @@ class PromptFromLeRobotTask(DataTransformFn):
 
         task_index = int(data["task_index"])
         if (prompt := self.tasks.get(task_index)) is None:
-            # raise ValueError(f"{task_index=} not found in task mapping: {self.tasks}")
-            prompt = "pick up the fried chicken and put it in the black bin" #TODO: HACK, missing task in eval set??
+            raise ValueError(f"{task_index=} not found in task mapping: {self.tasks}")
+            # prompt = "pick up the fried chicken and put it in the black bin" #TODO(jenny): HACK, missing task in eval set??
 
         return {**data, "prompt": prompt}
 
@@ -332,11 +362,25 @@ class PadStatesAndActions(DataTransformFn):
     model_action_dim: int
 
     def __call__(self, data: DataDict) -> DataDict:
+        if "state" not in data:
+            assert "subtask_target" in data and "subtask_target_mask" in data, "subtask_target and subtask_target_mask should be present (subtask prediction batch) if state is not present"
+            return data
+
         data["state"] = pad_to_dim(data["state"], self.model_action_dim, axis=-1)
         if "actions" in data:
             data["actions"] = pad_to_dim(data["actions"], self.model_action_dim, axis=-1)
         return data
 
+
+@dataclasses.dataclass(frozen=True)
+class CreateDummyActions(DataTransformFn):
+    action_horizon: int
+    action_dim: int
+    # HACK: the dataloader always yields a tuple (Observation, Actions), so we include dummy actions to keep the unified dataloader from erroring
+    def __call__(self, data: DataDict) -> DataDict:
+        if "actions" not in data:
+            data = {**data, "actions": np.zeros((self.action_horizon, self.action_dim), dtype=np.float32)}
+        return data
 
 def flatten_dict(tree: at.PyTree) -> dict:
     """Flatten a nested dictionary. Uses '/' as the separator."""

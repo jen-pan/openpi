@@ -56,10 +56,10 @@ def test_with_fake_dataset():
     assert len(batches) == 2
 
     for batch in batches:
-        assert all(x.shape[0] == config.batch_size for x in jax.tree.leaves(batch))
+        assert all(x.shape[0] == config.action_batch_size for x in jax.tree.leaves(batch))
 
     for _, actions in batches:
-        assert actions.shape == (config.batch_size, config.model.action_horizon, config.model.action_dim)
+        assert actions.shape == (config.action_batch_size, config.model.action_horizon, config.model.action_dim)
 
 
 def test_with_real_dataset():
@@ -74,11 +74,11 @@ def test_with_real_dataset():
         shuffle=True,
     )
     # Make sure that we can get the data config.
-    assert loader.data_config().repo_id == config.data.repo_id
+    assert loader.data_config().repo_id == config.action_data.repo_id
 
     batches = list(loader)
 
     assert len(batches) == 2
 
     for _, actions in batches:
-        assert actions.shape == (config.batch_size, config.model.action_horizon, config.model.action_dim)
+        assert actions.shape == (config.action_batch_size, config.model.action_horizon, config.model.action_dim)

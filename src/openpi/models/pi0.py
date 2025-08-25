@@ -20,23 +20,32 @@ logger = logging.getLogger("openpi")
 def make_attn_mask(input_mask, mask_ar):
     """Adapted from big_vision.
 
-    Tokens can attend to valid inputs tokens which have a cumulative mask_ar
-    smaller or equal to theirs. This way `mask_ar` bool[?B, N] can be used to
-    setup several types of attention, for example:
-
-      [[1 1 1 1 1 1]]: pure causal attention.
-
-      [[0 0 0 1 1 1]]: prefix-lm attention. The first 3 tokens can attend between
-          themselves and the last 3 tokens have a causal attention. The first
-          entry could also be a 1 without changing behaviour.
-
-      [[1 0 1 0 1 0 0 1 0 0]]: causal attention between 4 blocks. Tokens of a
-          block can attend all previous blocks and all tokens on the same block.
-
     Args:
       input_mask: bool[B, N] true if its part of the input, false if padding.
       mask_ar: bool[?B, N] mask that's true where previous tokens cannot depend on
         it and false where it shares the same attention mask as the previous token.
+        marks boundaries between autoregressive groups (block attn), where 1 starts 
+        a new block, 0 continues the current block.
+
+    This function computes per-position block_ids which is the cumsum(mask_ar) along the sequence. A query at position i can attend to a key at position j if block_ids[j] <= block_ids[i], which means that each token can see all tokens in earlier blocks and its own block, but never future blocks. within a block (same block_id), attention is bidirectional. 
+    Lastly, AND with valid_mask so only non-padding tokens can attend to each other.
+
+    Tokens can attend to valid inputs tokens which have a cumulative mask_ar
+    smaller or equal to theirs. This way `mask_ar` bool[?B, N] can be used to
+    setup several types of attention, for example:
+
+      [[1 1 1 1 1 1]]: pure causal attention
+        cumsum(mask_ar) = [1 2 3 4 5 6], so row i can attend to col j if j <= i, which is 
+        a lower-triangular mask
+
+      [[0 0 0 1 1 1]]: prefix-lm attention
+        cumsum(mask_ar) = [0 0 0 1 2 3], so first 3 tokens in block 0 and can attend to each 
+        other bidirectionally. token 3 is block 1 and can attend to all tokens in block <= 1, so
+        the 3-token prefix + itself. token 4 is block 2 and can attend to prefix + tokens up to 4, etc. we have a fully-visible prefix followed by standard causal decoding.
+      
+      [[1 0 1 0 1 0 0 1 0 0]]: causal attention between 4 blocks
+          cumsum(mask_ar) = [1 1 2 2 3 3 3 4 4 4]. Tokens of a block can attend all previous blocks and all tokens on the same block.
+
     """
     mask_ar = jnp.broadcast_to(mask_ar, input_mask.shape)
     cumsum = jnp.cumsum(mask_ar, axis=1)
@@ -74,6 +83,8 @@ class Pi0Config(_model.BaseModelConfig):
     action_dim: int = 32
     action_horizon: int = 50
     max_token_len: int = None  # type: ignore
+    max_subtask_token_len: int = 25 
+
     # Pi05 has two differences from Pi0:
     # - the state input is part of the discrete language tokens rather than a continuous input that is part of the suffix
     # - the action expert uses adaRMSNorm to inject the flow matching timestep
@@ -83,7 +94,7 @@ class Pi0Config(_model.BaseModelConfig):
 
     def __post_init__(self):
         if self.max_token_len is None:
-            object.__setattr__(self, "max_token_len", 200 if self.pi05 else 48)
+            object.__setattr__(self, "max_token_len", 400 if self.pi05 else 48)
         if self.discrete_state_input is None:
             object.__setattr__(self, "discrete_state_input", self.pi05)
 
@@ -105,19 +116,13 @@ class Pi0Config(_model.BaseModelConfig):
 
         with at.disable_typechecking():
             observation_spec = _model.Observation(
-                images={
-                    "base_0_rgb": image_spec,
-                    "left_wrist_0_rgb": image_spec,
-                    "right_wrist_0_rgb": image_spec,
-                },
-                image_masks={
-                    "base_0_rgb": image_mask_spec,
-                    "left_wrist_0_rgb": image_mask_spec,
-                    "right_wrist_0_rgb": image_mask_spec,
-                },
+                images={key: image_spec for key in _model.ACTION_PRED_IMAGE_KEYS + _model.SUBTASK_PRED_IMAGE_KEYS},
+                image_masks={key: image_mask_spec for key in _model.ACTION_PRED_IMAGE_KEYS + _model.SUBTASK_PRED_IMAGE_KEYS},
                 state=jax.ShapeDtypeStruct([batch_size, self.action_dim], jnp.float32),
-                tokenized_prompt=jax.ShapeDtypeStruct([batch_size, self.max_token_len], jnp.int32),
+                tokenized_prompt=jax.ShapeDtypeStruct([batch_size, self.max_token_len], jnp.int32), 
                 tokenized_prompt_mask=jax.ShapeDtypeStruct([batch_size, self.max_token_len], bool),
+                subtask_target=jax.ShapeDtypeStruct([batch_size, self.max_subtask_token_len], jnp.int32),
+                subtask_target_mask=jax.ShapeDtypeStruct([batch_size, self.max_subtask_token_len], bool),
             )
         action_spec = jax.ShapeDtypeStruct([batch_size, self.action_horizon, self.action_dim], jnp.float32)
 
@@ -159,6 +164,8 @@ class Pi0(_model.BaseModel):
     def __init__(self, config: Pi0Config, rngs: nnx.Rngs):
         super().__init__(config.action_dim, config.action_horizon, config.max_token_len)
         self.pi05 = config.pi05
+        self.max_subtask_token_len = config.max_subtask_token_len
+        # Add tokenizer for decoding subtask predictions
         paligemma_config = _gemma.get_config(config.paligemma_variant)
         action_expert_config = _gemma.get_config(config.action_expert_variant)
         # TODO: rewrite gemma in NNX. For now, use bridge.
@@ -241,11 +248,11 @@ class Pi0(_model.BaseModel):
         ar_mask = []
         tokens = []
         if not self.pi05:
-            # add a single state token
+            # add a single state token as first token of the suffix, before the action tokens
             state_token = self.state_proj(obs.state)[:, None, :]
             tokens.append(state_token)
             input_mask.append(jnp.ones((obs.state.shape[0], 1), dtype=jnp.bool_))
-            # image/language inputs do not attend to state or actions
+            # start a new block for state tokens, so image/language inputs do not attend to state or actions
             ar_mask += [True]
 
         action_tokens = self.action_in_proj(noisy_actions)
@@ -281,8 +288,9 @@ class Pi0(_model.BaseModel):
     def compute_loss(
         self, rng: at.KeyArrayLike, observation: _model.Observation, actions: _model.Actions, *, train: bool = False
     ) -> at.Float[at.Array, "*b ah"]:
+        assert observation.state is not None, "state is required for action prediction"
         preprocess_rng, noise_rng, time_rng = jax.random.split(rng, 3)
-        observation = _model.preprocess_observation(preprocess_rng, observation, train=train)
+        observation = _model.preprocess_observation(preprocess_rng, observation, train=train, image_keys=list(_model.ACTION_PRED_IMAGE_KEYS))
 
         batch_shape = actions.shape[:-2]
         noise = jax.random.normal(noise_rng, actions.shape)
@@ -296,28 +304,142 @@ class Pi0(_model.BaseModel):
         suffix_tokens, suffix_mask, suffix_ar_mask, adarms_cond = self.embed_suffix(observation, x_t, time)
         input_mask = jnp.concatenate([prefix_mask, suffix_mask], axis=1)
         ar_mask = jnp.concatenate([prefix_ar_mask, suffix_ar_mask], axis=0)
+        
         attn_mask = make_attn_mask(input_mask, ar_mask)
         positions = jnp.cumsum(input_mask, axis=1) - 1
         (prefix_out, suffix_out), _ = self.PaliGemma.llm(
             [prefix_tokens, suffix_tokens], mask=attn_mask, positions=positions, adarms_cond=[None, adarms_cond]
         )
         v_t = self.action_out_proj(suffix_out[:, -self.action_horizon :])
-
         return jnp.mean(jnp.square(v_t - u_t), axis=-1)
 
     @override
-    def sample_actions(
+    def predict_subtask(
+        self, 
+        rng: at.KeyArrayLike,
+        observation: _model.Observation, 
+        *,
+        max_decoding_steps: int = 50,
+        temperature: float = 0.0,
+        tokenizer = None
+    ) -> list[str]:
+        """Generate subtask tokens using simple autoregressive decoding with KV caching."""
+        observation = _model.preprocess_observation(rng, observation, train=False, image_keys=list(_model.SUBTASK_PRED_IMAGE_KEYS))
+        # Embed prefix and fill KV cache once
+        # prefix_tokens: bs x token_len x emb_dim
+        # prefix_mask: bs x token_len
+        # prefix_ar_mask (all false): token_len
+        prefix_tokens, prefix_mask, prefix_ar_mask = self.embed_prefix(observation)
+        batch_size = observation.tokenized_prompt.shape[0]
+        
+        # Prefill KV cache with prefix
+        # prefix_attn_mask: bs x token_len x token_len
+        prefix_attn_mask = make_attn_mask(prefix_mask, prefix_ar_mask)
+        # positions: bs x token_len, 0 to number of non-padding tokens
+        positions = jnp.cumsum(prefix_mask, axis=1) - 1
+        (prefix_out, _), kv_cache = self.PaliGemma.llm(
+            [prefix_tokens, None], 
+            mask=prefix_attn_mask, 
+            positions=positions,
+            adarms_cond=None
+        )
+        # prefix_out: bs x token_len x emb_dim
+        # kv cache: 18 x bs x token_len x 1 x emb_dim?? (18, 1, 4496, 1, 256)
+        
+        # Track number of valid prefix tokens per batch element
+        valid_prefix_len = jnp.sum(prefix_mask, axis=-1)
+
+        generated_tokens = []
+        current_rng = rng
+        current_cache = kv_cache
+        
+        for step in range(max_decoding_steps):
+            current_rng, step_rng = jax.random.split(current_rng)
+            print("----------STEP----------", step)
+            # For first token, use last valid hidden state from prefix; otherwise embed last token
+            if step == 0:
+                b_idx = jnp.arange(batch_size)
+                last_valid_idx = (valid_prefix_len - 1)
+                last_hidden = prefix_out[b_idx, last_valid_idx][:, None, :]
+            else:
+                # Subsequent steps: embed and process last token with cache
+                last_token = generated_tokens[-1][:, None]  # Last generated token
+                print("----------LAST TOKEN----------", last_token)
+                token_emb = self.PaliGemma.llm(last_token, method="embed")
+                # Attention mask: respect prefix padding, allow attending to all generated tokens
+                gen_mask = jnp.ones((batch_size, step), dtype=jnp.bool_)
+                token_mask = jnp.concatenate([prefix_mask, gen_mask], axis=-1)  # (b, prefix_len + step)
+                token_mask = token_mask[:, None, :]  # (b, 1, S)
+                token_pos = valid_prefix_len[:, None] + step - 1
+
+                # token_out: bs x 1 x emb_dim
+                (token_out, _), current_cache = self.PaliGemma.llm(
+                    [token_emb, None],
+                    mask=token_mask,
+                    positions=token_pos,
+                    kv_cache=current_cache,
+                    adarms_cond=None
+                )
+                
+                last_hidden = token_out
+            
+            logits = self.PaliGemma.llm(last_hidden.astype(jnp.float32), method="decode")
+            logits = logits[:, 0, :]  # [batch, vocab_size]
+            next_token = jnp.argmax(logits, axis=-1)
+            generated_tokens.append(next_token)
+            # Early stopping: check if all sequences have EOS token (1)
+            if jnp.all(next_token == 1):
+                break
+        
+        # Convert list to array
+        if generated_tokens:
+            current_tokens = jnp.stack(generated_tokens, axis=1)  # [batch, seq_len]
+        else:
+            current_tokens = jnp.zeros((batch_size, 0), dtype=jnp.int32)
+        
+        # Convert to strings
+        final_tokens_cpu = jax.device_get(current_tokens)
+        decoded_strings = []
+        
+        for i in range(batch_size):
+            tokens = final_tokens_cpu[i]
+            
+            # Truncate at EOS
+            eos_positions = jnp.where(tokens == 1)[0]
+            print("----------EOS POSITIONS----------", eos_positions)
+            if len(eos_positions) > 0:
+                tokens = tokens[:eos_positions[0]]
+            
+            # Remove padding and decode
+            print("----------TOKENS----------", tokens)
+            valid_tokens = tokens[tokens != 0]
+            if len(valid_tokens) > 0:
+                try:
+                    if tokenizer is None:
+                        # Fallback: create tokenizer if not provided
+                        from openpi.models import tokenizer as _tokenizer
+                        tokenizer = _tokenizer.PaligemmaTokenizer(max_len=self.max_subtask_token_len)
+                    decoded_text = tokenizer._tokenizer.decode(valid_tokens.tolist())
+                    decoded_strings.append(decoded_text)
+                except Exception:
+                    decoded_strings.append("")
+            else:
+                decoded_strings.append("")
+        return decoded_strings
+
+    @override
+    def sample_actions( 
         self,
         rng: at.KeyArrayLike,
         observation: _model.Observation,
         *,
         num_steps: int | at.Int[at.Array, ""] = 10,
     ) -> _model.Actions:
-        observation = _model.preprocess_observation(None, observation, train=False)
+        observation = _model.preprocess_observation(None, observation, train=False, image_keys=list(_model.ACTION_PRED_IMAGE_KEYS))
         # note that we use the convention more common in diffusion literature, where t=1 is noise and t=0 is the target
         # distribution. yes, this is the opposite of the pi0 paper, and I'm sorry.
         dt = -1.0 / num_steps
-        batch_size = observation.state.shape[0]
+        batch_size = observation.tokenized_prompt.shape[0]
         noise = jax.random.normal(rng, (batch_size, self.action_horizon, self.action_dim))
 
         # first fill KV cache with a forward pass of the prefix
@@ -367,3 +489,56 @@ class Pi0(_model.BaseModel):
 
         x_0, _ = jax.lax.while_loop(cond, step, (noise, 1.0))
         return x_0
+
+    @at.typecheck
+    def compute_subtask_loss(
+        self,
+        rng: at.KeyArrayLike,
+        observation: _model.Observation,
+        *,
+        train: bool = False,
+    ) -> tuple[at.Float[at.Array, "*b"], at.Int[at.Array, "*b seq_len"] | None, at.Bool[at.Array, "*b seq_len"] | None]:
+        # creates image augmentations and sets up image masking (default is all images are attended to) 
+        observation = _model.preprocess_observation(rng, observation, train=train, image_keys=list(_model.SUBTASK_PRED_IMAGE_KEYS))
+        # embed obs.images (keyframes + recent frames) and obs.tokenized_prompt (QA prompt) using PaliGemma tokenizer
+        # prefix_mask masks out invalid images and padding text tokens
+        # prefix_ar_mask is all zeros, so prefix is fully visible internally
+        prefix_tokens, prefix_mask, prefix_ar_mask = self.embed_prefix(observation)
+        print("----------PREFIX TOKENS----------", prefix_tokens.shape)
+        print("----------PREFIX MASK----------", prefix_mask.shape)
+        print("----------PREFIX AR MASK----------", prefix_ar_mask.shape)
+        # Prepare subtask target tokens
+        if observation.subtask_target is None or observation.subtask_target_mask is None:
+            raise ValueError("subtask_target and subtask_target_mask are required for subtask loss")
+        target_emb = self.PaliGemma.llm(observation.subtask_target, method="embed")
+        in_emb = target_emb[:, :-1]
+        target_tok = observation.subtask_target[:, 1:]
+        # ensure loss is only computed on meaningful tokens, not padding
+        target_mask = observation.subtask_target_mask[:, 1:]
+
+        # prefix fully visible (zeros), subtask target causal (ones)
+        target_len = in_emb.shape[1]
+        zeros = jnp.zeros(prefix_mask.shape[1], dtype=jnp.bool_)
+        ones = jnp.ones(target_len, dtype=jnp.bool_)
+        ar_mask = jnp.concatenate([zeros, ones], axis=0)
+        print("----------AR MASK----------", ar_mask)
+        input_mask = jnp.concatenate([prefix_mask, target_mask], axis=1)
+        embedded = jnp.concatenate([prefix_tokens, in_emb], axis=1)
+        attn_mask = make_attn_mask(input_mask, ar_mask)
+        positions = jnp.cumsum(input_mask, axis=1) - 1
+        print("----------ATTN MASK----------", attn_mask)
+        print("----------POSITIONS----------", positions)
+        # forward only through Paligemma expert
+        (lang_out, _), _ = self.PaliGemma.llm([embedded, None], mask=attn_mask, positions=positions, adarms_cond=None)
+        subtask_prediction = lang_out[:, -target_len:]
+        logits = self.PaliGemma.llm(subtask_prediction.astype(jnp.float32), method="decode")
+        logp = jax.nn.log_softmax(logits, axis=-1)
+
+        token_logp = jnp.take_along_axis(logp, target_tok[..., None], axis=-1)[..., 0]
+        ce_loss = -jnp.sum(token_logp * target_mask, axis=-1) / jnp.clip(jnp.sum(target_mask, axis=-1), 1)
+        if not train:
+            # Get predicted tokens by taking argmax of logits (greedy decoding)
+            predicted_tokens = jnp.argmax(logits, axis=-1)  # [batch, seq_len]
+            return ce_loss, predicted_tokens, target_mask
+        else:
+            return ce_loss, None, None 

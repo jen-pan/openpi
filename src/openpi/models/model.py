@@ -32,10 +32,19 @@ class ModelType(enum.Enum):
 
 
 # The model always expects these images
-IMAGE_KEYS = (
+ACTION_PRED_IMAGE_KEYS = (
+    # action prediction task
     "base_0_rgb",
     "left_wrist_0_rgb",
     "right_wrist_0_rgb",
+)
+
+KEYFRAMES = 2 
+RECENT_FRAMES = 6
+
+SUBTASK_PRED_IMAGE_KEYS = (
+    *[f"keyframe_{i}" for i in range(1, KEYFRAMES + 1)],
+    *[f"recent_frame_{i}" for i in range(1, RECENT_FRAMES + 1)],
 )
 
 
@@ -87,13 +96,13 @@ class Observation(Generic[ArrayT]):
     images: dict[str, at.Float[ArrayT, "*b h w c"]]
     # Image masks, with same keys as images.
     image_masks: dict[str, at.Bool[ArrayT, "*b"]]
-    # Low-dimensional robot state.
-    state: at.Float[ArrayT, "*b s"]
-
     # Tokenized prompt.
-    tokenized_prompt: at.Int[ArrayT, "*b l"] | None = None
+    tokenized_prompt: at.Int[ArrayT, "*b l"]
     # Tokenized prompt mask.
-    tokenized_prompt_mask: at.Bool[ArrayT, "*b l"] | None = None
+    tokenized_prompt_mask: at.Bool[ArrayT, "*b l"]
+
+    # Low-dimensional robot state.
+    state: at.Float[ArrayT, "*b s"] | None = None
 
     # pi0-fast model specific fields.
 
@@ -102,12 +111,16 @@ class Observation(Generic[ArrayT]):
     # Token loss mask (for FAST autoregressive model).
     token_loss_mask: at.Bool[ArrayT, "*b l"] | None = None
 
+    # Subtask prediction targets (optional): command text tokens and mask
+    subtask_target: at.Int[ArrayT, "*b tl"] | None = None
+    subtask_target_mask: at.Bool[ArrayT, "*b tl"] | None = None
+
     @classmethod
     def from_dict(cls, data: at.PyTree[ArrayT]) -> "Observation[ArrayT]":
         """This method defines the mapping between unstructured data (i.e., nested dict) to the structured Observation format."""
         # Ensure that tokenized_prompt and tokenized_prompt_mask are provided together.
-        if ("tokenized_prompt" in data) != ("tokenized_prompt_mask" in data):
-            raise ValueError("tokenized_prompt and tokenized_prompt_mask must be provided together.")
+        if "tokenized_prompt" not in data or "tokenized_prompt_mask" not in data:
+            raise ValueError("tokenized_prompt and tokenized_prompt_mask must both be provided.")
         # If images are uint8, convert them to [-1, 1] float32.
         for key in data["image"]:
             if data["image"][key].dtype == np.uint8:
@@ -115,11 +128,13 @@ class Observation(Generic[ArrayT]):
         return cls(
             images=data["image"],
             image_masks=data["image_mask"],
-            state=data["state"],
-            tokenized_prompt=data.get("tokenized_prompt"),
-            tokenized_prompt_mask=data.get("tokenized_prompt_mask"),
+            state=data.get("state"),
+            tokenized_prompt=data["tokenized_prompt"],
+            tokenized_prompt_mask=data["tokenized_prompt_mask"],
             token_ar_mask=data.get("token_ar_mask"),
             token_loss_mask=data.get("token_loss_mask"),
+            subtask_target=data.get("subtask_target"),
+            subtask_target_mask=data.get("subtask_target_mask"),
         )
 
     def to_dict(self) -> at.PyTree[ArrayT]:
@@ -140,7 +155,7 @@ def preprocess_observation(
     observation: Observation,
     *,
     train: bool = False,
-    image_keys: Sequence[str] = IMAGE_KEYS,
+    image_keys: Sequence[str] = ACTION_PRED_IMAGE_KEYS,
     image_resolution: tuple[int, int] = IMAGE_RESOLUTION,
 ) -> Observation:
     """Preprocess the observations by performing image augmentations (if train=True), resizing (if necessary), and
@@ -150,7 +165,7 @@ def preprocess_observation(
     if not set(image_keys).issubset(observation.images):
         raise ValueError(f"images dict missing keys: expected {image_keys}, got {list(observation.images)}")
 
-    batch_shape = observation.state.shape[:-1]
+    batch_shape = observation.tokenized_prompt.shape[:-1]
 
     out_images = {}
     for key in image_keys:
@@ -199,6 +214,8 @@ def preprocess_observation(
         tokenized_prompt_mask=observation.tokenized_prompt_mask,
         token_ar_mask=observation.token_ar_mask,
         token_loss_mask=observation.token_loss_mask,
+        subtask_target=observation.subtask_target,
+        subtask_target_mask=observation.subtask_target_mask,
     )
 
 
@@ -270,6 +287,8 @@ class BaseModel(nnx.Module, abc.ABC):
     @abc.abstractmethod
     def sample_actions(self, rng: at.KeyArrayLike, observation: Observation) -> Actions: ...
 
+    @abc.abstractmethod  # TODO(jenny): come back to this
+    def predict_subtask(self, rng: at.KeyArrayLike, observation: Observation, *, max_decoding_steps: int = 50, temperature: float = 0.0, tokenizer=None) -> list[str]: ...
 
 def restore_params(
     params_path: pathlib.Path | str,

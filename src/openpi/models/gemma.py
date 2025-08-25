@@ -384,6 +384,11 @@ class Module(nn.Module):
     def embed(self, tokens: at.Int[at.Array, "b t"]) -> at.Float[at.Array, "b t d"]:
         return self.embedder.encode(tokens).astype(self.embed_dtype)
 
+    # expose decode via Module so callers don't access submodules directly
+    @at.typecheck
+    def decode(self, x: at.Float[at.Array, "b t d"]) -> at.Float[at.Array, "b t v"]:
+        return self.embedder.decode(x)
+
     @at.typecheck
     def __call__(
         self,

@@ -3,7 +3,7 @@ import multiprocessing
 import os
 import typing
 from typing import Protocol, SupportsIndex, TypeVar
-
+from rich import print
 import jax
 import jax.numpy as jnp
 import lerobot.common.datasets.lerobot_dataset as lerobot_dataset
@@ -127,28 +127,30 @@ class FakeDataset(Dataset):
 
 
 def create_torch_dataset(
-    data_config: _config.DataConfig, action_horizon: int, model_config: _model.BaseModelConfig, is_eval: bool = False
+    data_config: _config.DataConfig, action_horizon: int, model_config: _model.BaseModelConfig, is_eval: bool = False, task: str = "action_pred"
 ) -> Dataset:
     """Create a dataset for training."""
+
+    default_eval_repo_id = "jennypan00/pi0_fast_ft_droid_lerobot_test" if task == "action_pred" else "jennypan00/bin_sorting_hl_subtask_prediction_16_frames_test_150"
+    
     if is_eval:
-        # repo_id = data_config.repo_id.replace("_train", "_test")
-        repo_id = "jennypan00/pi0_fast_ft_droid_lerobot_test" # TODO: hardcoded for now
-        print("------CREATING EVAL DATASET------", repo_id)
+        repo_id = data_config.eval_repo_id if data_config.eval_repo_id is not None else default_eval_repo_id
     else:
         repo_id = data_config.repo_id
-        print("------CREATING TRAIN DATASET------", repo_id)
     if repo_id is None:
         raise ValueError("Repo ID is not set. Cannot create dataset.")
     if repo_id == "fake":
         return FakeDataset(model_config, num_samples=1024)
 
     dataset_meta = lerobot_dataset.LeRobotDatasetMetadata(repo_id)
-    print("------DATASET META------", dataset_meta)
+    print(f"[bold green]{'EVAL' if is_eval else 'TRAIN'} DATASET META[/]")
+    print(dataset_meta)
     dataset = lerobot_dataset.LeRobotDataset(
-        data_config.repo_id,
+        repo_id, 
         delta_timestamps={
             key: [t / dataset_meta.fps for t in range(action_horizon)] for key in data_config.action_sequence_keys
         },
+        tolerance_s=0.01, # this is a hack to load the dataset with increased tolerance in timestamp diff in subtask dataset
     )
 
     if data_config.prompt_from_task:
@@ -233,15 +235,16 @@ def create_data_loader(
     num_batches: int | None = None,
     skip_norm_stats: bool = False,
     is_eval: bool = False,
+    task: str = "action_pred",
 ) -> DataLoader[tuple[_model.Observation, _model.Actions]]:
     """Create a data loader for training."""
-    data_config = config.data.create(config.assets_dirs, config.model)
-    print("------create_data_loader CONFIG------", data_config)
+    assert task in ["action_pred", "subtask_pred"], "Task must be either action_pred or subtask_pred"
+    data_config = config.action_data.create(config.assets_dirs, config.model) if task == "action_pred" else config.subtask_data.create(config.assets_dirs, config.model)
     if data_config.rlds_data_dir is not None:
         return create_rlds_data_loader(
             data_config,
             action_horizon=config.model.action_horizon,
-            batch_size=config.batch_size,
+            batch_size=config.action_batch_size if task == "action_pred" else config.subtask_batch_size,
             sharding=sharding,
             shuffle=shuffle,
             num_batches=num_batches,
@@ -251,7 +254,7 @@ def create_data_loader(
         data_config,
         model_config=config.model,
         action_horizon=config.model.action_horizon,
-        batch_size=config.batch_size,
+        batch_size=config.action_batch_size if task == "action_pred" else config.subtask_batch_size,
         sharding=sharding,
         shuffle=shuffle,
         num_batches=num_batches,
@@ -259,6 +262,7 @@ def create_data_loader(
         seed=config.seed,
         skip_norm_stats=skip_norm_stats,
         is_eval=is_eval,
+        task=task,
     )
 
 
@@ -275,6 +279,7 @@ def create_torch_data_loader(
     num_workers: int = 0,
     seed: int = 0,
     is_eval: bool = False,
+    task: str = "action_pred",
 ) -> DataLoader[tuple[_model.Observation, _model.Actions]]:
     """Create a data loader for training.
 
@@ -293,7 +298,7 @@ def create_torch_data_loader(
             execute in the main process.
         seed: The seed to use for shuffling the data.
     """
-    dataset = create_torch_dataset(data_config, action_horizon, model_config, is_eval=is_eval)
+    dataset = create_torch_dataset(data_config, action_horizon, model_config, is_eval=is_eval, task=task)
     dataset = transform_dataset(dataset, data_config, skip_norm_stats=skip_norm_stats)
 
     data_loader = TorchDataLoader(
@@ -304,8 +309,9 @@ def create_torch_data_loader(
         num_batches=num_batches,
         num_workers=num_workers,
         seed=seed,
+        task=task,
     )
-
+    #TODO(jenny): use different data loader for subtask prediction
     return DataLoaderImpl(data_config, data_loader)
 
 
@@ -358,6 +364,7 @@ class TorchDataLoader:
         num_batches: int | None = None,
         num_workers: int = 0,
         seed: int = 0,
+        task: str = "action_pred",
     ):
         """Create a PyTorch data loader.
 
@@ -389,7 +396,7 @@ class TorchDataLoader:
 
         self._sharding = sharding
         self._num_batches = num_batches
-
+        self._task = task
         mp_context = None
         if num_workers > 0:
             mp_context = multiprocessing.get_context("spawn")
@@ -423,6 +430,7 @@ class TorchDataLoader:
                 try:
                     batch = next(data_iter)
                 except StopIteration:
+                    print(f"[DATALOADER] Torch data iterator exhausted for task: {self._task}, starting new cycle")
                     break  # We've exhausted the dataset. Create a new iterator and start over.
                 num_items += 1
                 yield jax.tree.map(lambda x: jax.make_array_from_process_local_data(self._sharding, x), batch)
