@@ -38,7 +38,6 @@ class SubtaskPredictionInputs(transforms.DataTransformFn):
 
     def __call__(self, data: dict) -> dict:
         assert "prompt" in data, "prompt must be in data for subtask prediction"
-        assert self.model_type == _model.ModelType.PI05, "subtask prediction task only supported for PI05 model"
         
         prompt = data["prompt"] if isinstance(data["prompt"], str) else data["prompt"].decode("utf-8")
 

@@ -80,7 +80,8 @@ class Pi0FASTConfig(_model.BaseModelConfig):
     # Set the model specific defaults.
     action_dim: int = 32
     action_horizon: int = 32
-    max_token_len: int = 250
+    max_token_len: int = 300 # TODO(jenny): revert to 250
+    max_subtask_token_len: int = 25 
 
     @property
     @override
@@ -98,21 +99,15 @@ class Pi0FASTConfig(_model.BaseModelConfig):
 
         with at.disable_typechecking():
             observation_spec = _model.Observation(
-                images={
-                    "base_0_rgb": image_spec,
-                    "base_1_rgb": image_spec,
-                    "wrist_0_rgb": image_spec,
-                },
-                image_masks={
-                    "base_0_rgb": image_mask_spec,
-                    "base_1_rgb": image_mask_spec,
-                    "wrist_0_rgb": image_mask_spec,
-                },
+                images={key: image_spec for key in _model.ACTION_PRED_IMAGE_KEYS + _model.SUBTASK_PRED_IMAGE_KEYS},
+                image_masks={key: image_mask_spec for key in _model.ACTION_PRED_IMAGE_KEYS + _model.SUBTASK_PRED_IMAGE_KEYS},
                 state=jax.ShapeDtypeStruct([batch_size, self.action_dim], jnp.float32),
                 tokenized_prompt=jax.ShapeDtypeStruct([batch_size, self.max_token_len], jnp.int32),
                 tokenized_prompt_mask=jax.ShapeDtypeStruct([batch_size, self.max_token_len], bool),
                 token_ar_mask=jax.ShapeDtypeStruct([batch_size, self.max_token_len], jnp.int32),
                 token_loss_mask=jax.ShapeDtypeStruct([batch_size, self.max_token_len], jnp.bool_),
+                subtask_target=jax.ShapeDtypeStruct([batch_size, self.max_subtask_token_len], jnp.int32),
+                subtask_target_mask=jax.ShapeDtypeStruct([batch_size, self.max_subtask_token_len], jnp.bool_),
             )
         action_spec = jax.ShapeDtypeStruct([batch_size, self.action_horizon, self.action_dim], jnp.float32)
 
@@ -191,7 +186,7 @@ class Pi0FAST(_model.BaseModel):
     @override
     def compute_loss(
         self, rng: at.KeyArrayLike, observation: _model.Observation, actions: _model.Actions, *, train: bool = False
-    ) -> at.Float[at.Array, "*b ah"]:
+    ):
         observation = _model.preprocess_observation(
             rng, observation, train=train, image_keys=list(observation.images.keys())
         )
@@ -224,7 +219,81 @@ class Pi0FAST(_model.BaseModel):
         assert observation.token_loss_mask is not None, "Token loss mask is required"
         loss_mask = observation.token_loss_mask[:, 1:]
         token_pplx = jnp.sum(targets * logp, axis=-1)
-        return -jnp.sum(token_pplx * loss_mask, axis=-1) / jnp.clip(jnp.sum(loss_mask, -1), 1)
+        ce_loss = -jnp.sum(token_pplx * loss_mask, axis=-1) / jnp.clip(jnp.sum(loss_mask, -1), 1)
+        
+        if not train:
+            # For evaluation, return predicted tokens for analysis
+            predicted_tokens = jnp.argmax(logits, axis=-1)
+            return ce_loss, predicted_tokens, loss_mask
+        else:
+            return ce_loss, None, None
+
+    @at.typecheck
+    def compute_subtask_loss(
+        self,
+        rng: at.KeyArrayLike,
+        observation: _model.Observation,
+        *,
+        train: bool = False,
+    ):
+        """Compute subtask prediction loss using autoregressive language modeling.
+        
+        This method trains the Pi0FAST model to predict subtask descriptions autoregressively,
+        similar to the existing subtask prediction in Pi0 but adapted for the FAST architecture.
+        """
+        # Preprocess observation for subtask prediction (uses keyframes + recent frames)
+        observation = _model.preprocess_observation(
+            rng, observation, train=train, image_keys=list(_model.SUBTASK_PRED_IMAGE_KEYS)
+        )
+        
+        if observation.subtask_target is None or observation.subtask_target_mask is None:
+            raise ValueError("subtask_target and subtask_target_mask are required for subtask loss")
+        
+        # Embed images and tokenized prompt (if any) - this is the prefix
+        input_token_embeddings, input_mask, ar_mask = self.embed_inputs(observation)
+        
+        # Get subtask target embeddings (input shifted by 1 for autoregressive prediction)
+        target_embeddings = self.PaliGemma.llm(observation.subtask_target, embed_only=True)
+        input_target_embeddings = target_embeddings[:, :-1]  # Input: all but last token
+        target_tokens = observation.subtask_target[:, 1:]     # Target: all but first token
+        target_mask = observation.subtask_target_mask[:, 1:] # Mask: all but first token
+        
+        # Concatenate image/prompt embeddings with subtask target embeddings
+        full_embeddings = jnp.concatenate([input_token_embeddings, input_target_embeddings], axis=1)
+        
+        # Create attention mask: prefix is fully visible (ar_mask from embed_inputs), 
+        # subtask target is causal (1s)
+        subtask_ar_mask = jnp.ones(input_target_embeddings.shape[1], dtype=jnp.int32)
+        full_ar_mask = jnp.concatenate([ar_mask, subtask_ar_mask], axis=0)
+        
+        # Create input mask for the full sequence
+        full_input_mask = jnp.concatenate([input_mask, target_mask], axis=1)
+        
+        # Create attention mask
+        attn_mask = make_attn_mask(full_input_mask, full_ar_mask)
+        
+        # Forward pass through the model
+        pre_logits, _, _ = self.PaliGemma.llm(
+            embedded_prefix=full_embeddings,
+            mask=attn_mask,
+            return_prelogits=True,
+        )
+        
+        # Only decode logits for the subtask target tokens to save memory
+        subtask_pre_logits = pre_logits[:, -target_tokens.shape[1]:]
+        logits, _ = self.PaliGemma.llm(pre_logits=subtask_pre_logits)
+        
+        # Compute cross-entropy loss
+        logp = jax.nn.log_softmax(logits, axis=-1)
+        token_logp = jnp.take_along_axis(logp, target_tokens[..., None], axis=-1)[..., 0]
+        ce_loss = -jnp.sum(token_logp * target_mask, axis=-1) / jnp.clip(jnp.sum(target_mask, axis=-1), 1)
+        
+        if not train:
+            # For evaluation, return predicted tokens for analysis
+            predicted_tokens = jnp.argmax(logits, axis=-1)
+            return ce_loss, predicted_tokens, target_mask
+        else:
+            return ce_loss, None, None
 
     @override
     def sample_actions(
@@ -232,12 +301,12 @@ class Pi0FAST(_model.BaseModel):
         rng: at.KeyArrayLike,
         observation: _model.Observation,
         *,
-        max_decoding_steps: int | at.Int[at.Array, ""] = 256,
+        max_decoding_steps: int = 256,
         temperature: float = 0.0,
     ) -> _model.Actions:
         # TODO: this is a hack to get the image keys.
         observation = _model.preprocess_observation(
-            None, observation, train=False, image_keys=list(observation.images.keys())
+            None, observation, train=False, image_keys=list(_model.ACTION_PRED_IMAGE_KEYS)
         )
 
         # embed inputs
@@ -305,3 +374,123 @@ class Pi0FAST(_model.BaseModel):
             cond, step, (rng, last_logit, output_tokens, kv_cache, False, 0)
         )
         return output_tokens
+
+    @override
+    def predict_subtask(
+        self, 
+        rng: at.KeyArrayLike,
+        observation: _model.Observation, 
+        *,
+        max_decoding_steps: int = 50,
+        temperature: float = 0.0,
+        tokenizer=None
+    ) -> list[str]:
+        """Predict subtask description autoregressively.
+        
+        This method generates subtask descriptions by sampling from the model
+        in an autoregressive manner, similar to sample_actions but for text generation.
+        """
+        # Preprocess observation for subtask prediction
+        observation = _model.preprocess_observation(
+            None, observation, train=False, image_keys=list(_model.SUBTASK_PRED_IMAGE_KEYS)
+        )
+        
+        # Embed inputs (images + optional prompt)
+        prefix_token_embeddings, prefix_mask, prefix_ar_mask = self.embed_inputs(observation)
+        prefix_attn_mask = make_attn_mask(prefix_mask, prefix_ar_mask)
+        
+        # Left to right align all input token sequences
+        prefix_token_embeddings, prefix_mask, prefix_attn_mask = left_to_right_align(
+            prefix_token_embeddings, prefix_mask, prefix_attn_mask
+        )
+        prefill_size = prefix_token_embeddings.shape[1]
+        prefill_len = jnp.sum(prefix_mask, axis=-1)
+        prefix_start = prefill_size - prefill_len
+        
+        # First fill KV cache with a forward pass of the prefix
+        # Pad attention mask to set the size of the KV cache (prefill_size + max_decoding_steps)
+        prefix_attn_mask = jnp.pad(prefix_attn_mask, ((0, 0), (0, 0), (0, max_decoding_steps)))
+        prefix_positions = jnp.cumsum(prefix_mask, axis=-1) - 1
+        prefix_logits, kv_cache, _ = self.PaliGemma.llm(
+            embedded_prefix=prefix_token_embeddings, 
+            mask=prefix_attn_mask, 
+            positions=prefix_positions, 
+            decode=True
+        )
+        
+        # Prepare decoding -- final logit decodes the first token
+        last_logit = prefix_logits[:, -1:]
+        output_tokens = jnp.zeros((last_logit.shape[0], max_decoding_steps), dtype=jnp.int32)
+        
+        def step(carry):
+            rng, last_logit, output_tokens, cache, _, step = carry
+            
+            # Sample token from last logit
+            rng, rng_step = jax.random.split(rng)
+            token = jax.lax.cond(
+                temperature > 0.0,
+                lambda _: jax.random.categorical(rng_step, last_logit / temperature, axis=-1),
+                lambda _: jnp.argmax(last_logit, axis=-1),
+                operand=None,
+            )
+            output_tokens = put_along_last_axis(output_tokens, jnp.broadcast_to(step, (token.shape[0], 1)), token)
+            
+            # Check for early stopping -- stop if all batch elements have EOS token
+            has_eos = jnp.any(token == PALIGEMMA_EOS_TOKEN, axis=-1)
+            all_eos = jnp.all(has_eos)
+            
+            # Decode one step
+            token_embedding = self.PaliGemma.llm(token, embed_only=True)
+            positions = prefill_len[:, None] + step + 1
+            mask = jnp.logical_and(
+                jnp.arange(prefill_size + max_decoding_steps)[None, None, :] >= prefix_start[:, None, None],
+                jnp.arange(prefill_size + max_decoding_steps)[None, None, :]
+                < (jnp.broadcast_to(prefill_size + step + 1, (prefix_start.shape[0], 1, 1))),
+            )
+            last_logit, kv_cache, _ = self.PaliGemma.llm(
+                embedded_prefix=token_embedding, 
+                mask=mask, 
+                positions=positions, 
+                decode=True, 
+                kv_cache=cache
+            )
+            
+            return rng, last_logit, output_tokens, kv_cache, all_eos, step + 1
+        
+        def cond(carry):
+            _, _, _, _, all_eos, step = carry
+            return (~all_eos) & (step < max_decoding_steps)
+        
+        # Use lax.while_loop so we can jit the full decoding loop
+        _, _, output_tokens, _, _, _ = jax.lax.while_loop(
+            cond, step, (rng, last_logit, output_tokens, kv_cache, False, 0)
+        )
+        
+        # Convert tokens to strings
+        if tokenizer is None:
+            # Import here to avoid circular imports
+            from openpi.models import tokenizer as _tokenizer
+            tokenizer = _tokenizer.PaligemmaTokenizer()
+        
+        # Decode each sequence in the batch
+        batch_size = output_tokens.shape[0]
+        decoded_texts = []
+        
+        for i in range(batch_size):
+            # Find first EOS token or end of sequence
+            tokens = output_tokens[i]
+            eos_positions = jnp.where(tokens == PALIGEMMA_EOS_TOKEN, jnp.arange(len(tokens)), len(tokens))
+            first_eos = jnp.min(eos_positions)
+            
+            # Extract tokens up to first EOS
+            valid_tokens = tokens[:first_eos]
+            # Remove any padding tokens (token id 0)
+            valid_tokens = valid_tokens[valid_tokens != 0]
+            
+            if len(valid_tokens) > 0:
+                decoded_text = tokenizer._tokenizer.decode(valid_tokens.tolist())
+                decoded_texts.append(decoded_text)
+            else:
+                decoded_texts.append("")
+        
+        return decoded_texts

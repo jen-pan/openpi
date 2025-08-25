@@ -164,7 +164,7 @@ def train_step(
     def loss_fn(
         model: _model.BaseModel, rng: at.KeyArrayLike, observation: _model.Observation, actions: _model.Actions
     ):
-        chunked_loss = model.compute_loss(rng, observation, actions, train=True)
+        chunked_loss, _, _ = model.compute_loss(rng, observation, actions, train=True)
         return jnp.mean(chunked_loss) * config.action_loss_weight
 
     train_rng = jax.random.fold_in(rng, state.step)
@@ -256,19 +256,17 @@ def eval_step(
     rng: at.KeyArrayLike,
     state: training_utils.TrainState,
     batch: tuple[_model.Observation, _model.Actions],
-) -> dict[str, at.Array]:
+) -> tuple[dict[str, at.Array], at.Array | None, at.Array | None]:
     """Run a forward pass without gradient updates and return metrics."""
     # Use EMA parameters for evaluation if available.
     model_params = state.ema_params if state.ema_params is not None else state.params
     model = nnx.merge(state.model_def, model_params)
-
-    @at.typecheck
-    def loss_fn(model: _model.BaseModel, rng: at.KeyArrayLike, observation: _model.Observation, actions: _model.Actions):
-        chunked_loss = model.compute_loss(rng, observation, actions, train=False)
-        return jnp.mean(chunked_loss)
+    model.eval()
 
     observation, actions = batch
-    loss = loss_fn(model, rng, observation, actions)
+    chunked_loss, predicted_tokens, target_mask = model.compute_loss(rng, observation, actions, train=False)
+    loss = jnp.mean(chunked_loss) * config.action_loss_weight
+    return {"eval/action_loss": loss}, predicted_tokens, target_mask
 
 def eval_step_subtask(
     config: _config.TrainConfig,
@@ -290,16 +288,16 @@ def decode_subtask_predictions(batch, predicted_tokens, target_mask):
         import numpy as np
         from openpi.models import tokenizer as _tokenizer        
         paligemma_tokenizer = _tokenizer.PaligemmaTokenizer()
-        observation, _ = batch
-        if observation.subtask_target is None:
-            return ["NO_SUBTASK_TARGET"], ["NO_SUBTASK_TARGET"]
+        # observation, _ = batch
+        # if observation.subtask_target is None:
+        #     return ["NO_SUBTASK_TARGET"], ["NO_SUBTASK_TARGET"]
         
         if predicted_tokens is not None and target_mask is not None:
-            num_samples_to_decode = min(20, predicted_tokens.shape[0])
+            num_samples_to_decode = min(40, predicted_tokens.shape[0])
             predicted_tokens_cpu = jax.device_get(predicted_tokens[:num_samples_to_decode])
             target_mask_cpu = jax.device_get(target_mask[:num_samples_to_decode])
-            subtask_target_cpu = jax.device_get(observation.subtask_target[:num_samples_to_decode])
-            subtask_target_mask_cpu = jax.device_get(observation.subtask_target_mask[:num_samples_to_decode])
+            # subtask_target_cpu = jax.device_get(observation.subtask_target[:num_samples_to_decode])
+            # subtask_target_mask_cpu = jax.device_get(observation.subtask_target_mask[:num_samples_to_decode])
             
             decoded_predictions = []
             decoded_targets = []
@@ -316,16 +314,17 @@ def decode_subtask_predictions(batch, predicted_tokens, target_mask):
                 else:
                     decoded_predictions.append("EMPTY_PREDICTION")
                 
-                # Decode targets
-                target_mask_np = np.array(subtask_target_mask_cpu[i], dtype=bool)
-                valid_target_tokens = subtask_target_cpu[i][target_mask_np]
-                valid_target_tokens = valid_target_tokens[valid_target_tokens != 0]
+                # Decode targets (align with shifted prediction targets)
+                # target_ids = subtask_target_cpu[i][1:]
+                # target_mask_np = np.array(subtask_target_mask_cpu[i][1:], dtype=bool)
+                # valid_target_tokens = target_ids[target_mask_np]
+                # valid_target_tokens = valid_target_tokens[valid_target_tokens != 0]
                 
-                if len(valid_target_tokens) > 0:
-                    decoded_target = paligemma_tokenizer._tokenizer.decode(valid_target_tokens.tolist())
-                    decoded_targets.append(decoded_target)
-                else:
-                    decoded_targets.append("EMPTY_TARGET")
+                # if len(valid_target_tokens) > 0:
+                #     decoded_target = paligemma_tokenizer._tokenizer.decode(valid_target_tokens.tolist())
+                #     decoded_targets.append(decoded_target)
+                # else:
+                #     decoded_targets.append("EMPTY_TARGET")
                     
             return decoded_predictions, decoded_targets
         else:
@@ -491,8 +490,8 @@ def main(config: _config.TrainConfig):
                 # always do subtask training
                 batch = next(subtask_iter)
                 observation, _ = batch
-                # train_state, info = ptrain_step_subtask(train_rng, train_state, observation)
-                train_state, info = ptrain_step(train_rng, train_state, batch)
+                train_state, info = ptrain_step_subtask(train_rng, train_state, observation)
+                # train_state, info = ptrain_step(train_rng, train_state, batch)
                 subtask_info = {f"subtask/{k}": v for k, v in info.items()}
                 subtask_infos.append(subtask_info)
             elif subtask_iter is None and action_iter is not None:
@@ -508,8 +507,8 @@ def main(config: _config.TrainConfig):
                 if should_do_subtask:
                     batch = next(subtask_iter)
                     observation, _ = batch
-                    # train_state, info = ptrain_step_subtask(train_rng, train_state, observation)
-                    train_state, info = ptrain_step(train_rng, train_state, batch)
+                    train_state, info = ptrain_step_subtask(train_rng, train_state, observation)
+                    # train_state, info = ptrain_step(train_rng, train_state, batch)
                     subtask_info = {f"subtask/{k}": v for k, v in info.items()}
                     subtask_infos.append(subtask_info)
                 else:
@@ -562,7 +561,7 @@ def main(config: _config.TrainConfig):
                         break
                     e_batch = next(action_eval_iter)
 
-                    eval_info = peval_step(eval_rng, train_state, e_batch)
+                    eval_info, predicted_tokens, target_mask = peval_step(eval_rng, train_state, e_batch)
                     eval_infos.append(eval_info)
                     batch_idx += 1
 
@@ -581,7 +580,7 @@ def main(config: _config.TrainConfig):
                         break
                     se_batch = next(subtask_eval_iter)
 
-                    subtask_eval_info, predicted_tokens, target_mask = peval_step_subtask(eval_rng, train_state, se_batch)
+                    subtask_eval_info, predicted_tokens, target_mask = peval_step(eval_rng, train_state, se_batch)
                     subtask_eval_infos.append(subtask_eval_info)
                     
                     # Decode predictions from first batch for sanity checking
