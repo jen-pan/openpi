@@ -994,30 +994,44 @@ _CONFIGS = [
             pi05=True, action_dim=32, action_horizon=16,
         ),
         subtask_data=SubtaskPredictionDataConfig(
-            repo_id="jennypan00/bin_sorting_hl_subtask_prediction_16_frames",
+            repo_id="jennypan00/bin_sorting_hl_subtask_prediction_16_frames_v2",
             base_config=DataConfig(prompt_from_task=True),
-            eval_repo_id="jennypan00/bin_sorting_hl_subtask_prediction_16_frames_test_longest",
+            eval_repo_id="jennypan00/bin_sorting_hl_subtask_prediction_16_frames_test_150",
         ),
         weight_loader=weight_loaders.CheckpointWeightLoader("gs://openpi-assets-preview/checkpoints/pi05_droid/params"),
         num_train_steps=30_000,
-        action_batch_size=16,
+        subtask_batch_size=16,
     ),
     TrainConfig(
-        name="pi05_cotrain_subtask_only_lora",
+        name="pi05_cotrain_subtask_truncated",
         model=pi0.Pi0Config(
             pi05=True, action_dim=32, action_horizon=16,
+        ),
+        subtask_data=SubtaskPredictionDataConfig(
+            repo_id="jennypan00/bin_sorting_hl_subtask_prediction_16_frames_truncated",
+            base_config=DataConfig(prompt_from_task=True),
+            eval_repo_id="jennypan00/bin_sorting_hl_subtask_prediction_16_frames_test_150",
+        ),
+        weight_loader=weight_loaders.CheckpointWeightLoader("gs://openpi-assets-preview/checkpoints/pi05_droid/params"),
+        num_train_steps=30_000,
+        subtask_batch_size=16,
+    ),
+    TrainConfig(
+        name="pi05_fast_subtask_only_lora",
+        model=pi0_fast.Pi0FASTConfig(
+            action_dim=32, action_horizon=16,
             paligemma_variant="gemma_2b_lora"
         ),
         subtask_data=SubtaskPredictionDataConfig(
-            repo_id="jennypan00/bin_sorting_hl_subtask_prediction_16_frames_eval",
+            repo_id="jennypan00/bin_sorting_hl_subtask_prediction_16_frames_v2",
             base_config=DataConfig(prompt_from_task=True),
-            eval_repo_id="jennypan00/bin_sorting_hl_subtask_prediction_16_frames_test_longest",
+            eval_repo_id="jennypan00/bin_sorting_hl_subtask_prediction_16_frames_test_150",
         ),
         weight_loader=weight_loaders.CheckpointWeightLoader("gs://openpi-assets-preview/checkpoints/pi05_droid/params"),
         num_train_steps=30_000,
-        action_batch_size=1, # still need to use action_batch_size for subtask data loader
-        freeze_filter=pi0.Pi0Config(
-            pi05=True, action_dim=32, action_horizon=16, paligemma_variant="gemma_2b_lora"
+        action_batch_size=1,
+        freeze_filter=pi0_fast.Pi0FASTConfig(
+            action_dim=32, action_horizon=16, paligemma_variant="gemma_2b_lora"
         ).get_freeze_filter(),
         ema_decay=None,
     ),

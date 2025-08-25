@@ -270,7 +270,20 @@ def eval_step(
     observation, actions = batch
     loss = loss_fn(model, rng, observation, actions)
 
-    return {"eval/action_loss": loss}
+def eval_step_subtask(
+    config: _config.TrainConfig,
+    rng: at.KeyArrayLike,
+    state: training_utils.TrainState,
+    batch: tuple[_model.Observation, _model.Actions],
+) -> tuple[dict[str, at.Array], at.Array | None, at.Array | None]:
+    model_params = state.ema_params if state.ema_params is not None else state.params
+    model = nnx.merge(state.model_def, model_params)
+    model.eval()
+    
+    observation, _ = batch
+    loss, predicted_tokens, target_mask = model.compute_subtask_loss(rng, observation, train=False)
+    loss = jnp.mean(loss) * config.subtask_loss_weight
+    return {"eval/subtask_loss": loss}, predicted_tokens, target_mask
 
 def decode_subtask_predictions(batch, predicted_tokens, target_mask):
     try:
@@ -320,22 +333,7 @@ def decode_subtask_predictions(batch, predicted_tokens, target_mask):
         
     except Exception as e:
         return [f"DECODE_ERROR: {str(e)}"], [f"DECODE_ERROR: {str(e)}"]
-
-
-def eval_step_subtask(
-    config: _config.TrainConfig,
-    rng: at.KeyArrayLike,
-    state: training_utils.TrainState,
-    batch: tuple[_model.Observation, _model.Actions],
-) -> tuple[dict[str, at.Array], at.Array | None, at.Array | None]:
-    model_params = state.ema_params if state.ema_params is not None else state.params
-    model = nnx.merge(state.model_def, model_params)
-    
-    observation, _ = batch
-    loss, predicted_tokens, target_mask = model.compute_subtask_loss(rng, observation, train=False)
-    loss = jnp.mean(loss)
-    return {"eval/subtask_loss": loss}, predicted_tokens, target_mask
-
+        
 def main(config: _config.TrainConfig):
     init_logging()
     logging.info(f"Running on: {platform.node()}")
@@ -489,21 +487,36 @@ def main(config: _config.TrainConfig):
     # =========================== train loop ===========================
     for step in pbar:
         with sharding.set_mesh(mesh):
-            # Use ratio-based scheduling for subtask steps
-            should_do_subtask = (subtask_iter is not None and 
-                                step % config.subtask_step_ratio == 0)
-            
-            if should_do_subtask:
+            if action_iter is None and subtask_iter is not None:
+                # always do subtask training
                 batch = next(subtask_iter)
                 observation, _ = batch
-                train_state, info = ptrain_step_subtask(train_rng, train_state, observation)
+                # train_state, info = ptrain_step_subtask(train_rng, train_state, observation)
+                train_state, info = ptrain_step(train_rng, train_state, batch)
                 subtask_info = {f"subtask/{k}": v for k, v in info.items()}
                 subtask_infos.append(subtask_info)
-            elif action_iter is not None:
+            elif subtask_iter is None and action_iter is not None:
+                # always do action training
                 batch = next(action_iter)
                 train_state, info = ptrain_step(train_rng, train_state, batch)
                 action_info = {f"action/{k}": v for k, v in info.items()}
                 action_infos.append(action_info)
+            elif action_iter is not None and subtask_iter is not None:
+                # use ratio-based scheduling for subtask steps
+                should_do_subtask = (step % config.subtask_step_ratio == 0)
+                
+                if should_do_subtask:
+                    batch = next(subtask_iter)
+                    observation, _ = batch
+                    # train_state, info = ptrain_step_subtask(train_rng, train_state, observation)
+                    train_state, info = ptrain_step(train_rng, train_state, batch)
+                    subtask_info = {f"subtask/{k}": v for k, v in info.items()}
+                    subtask_infos.append(subtask_info)
+                else:
+                    batch = next(action_iter)
+                    train_state, info = ptrain_step(train_rng, train_state, batch)
+                    action_info = {f"action/{k}": v for k, v in info.items()}
+                    action_infos.append(action_info)
             else:
                 raise RuntimeError("No data available for training step")
         
@@ -553,9 +566,10 @@ def main(config: _config.TrainConfig):
                     eval_infos.append(eval_info)
                     batch_idx += 1
 
-                stacked_eval = common_utils.stack_forest(eval_infos)
-                reduced_eval = jax.device_get(jax.tree.map(jnp.mean, stacked_eval))
-            
+                stacked_action_eval = common_utils.stack_forest(eval_infos)
+                reduced_action_eval = jax.device_get(jax.tree.map(jnp.mean, stacked_action_eval))
+                reduced_eval.update(reduced_action_eval)
+                            
             if subtask_eval_iter is not None:
                 subtask_eval_infos = []
                 num_subtask_eval_batches = len(subtask_eval_loader._data_loader.torch_loader)  # type: ignore[attr-defined]
@@ -570,14 +584,13 @@ def main(config: _config.TrainConfig):
                     subtask_eval_info, predicted_tokens, target_mask = peval_step_subtask(eval_rng, train_state, se_batch)
                     subtask_eval_infos.append(subtask_eval_info)
                     
-                    # Decode predictions from first batch for sanity checking (outside JIT)
+                    # Decode predictions from first batch for sanity checking
                     if batch_idx == 0 and jax.process_index() == 0:
                         try:
                             decoded_predictions, decoded_targets = decode_subtask_predictions(se_batch, predicted_tokens, target_mask)
                             for i, (pred, target) in enumerate(zip(decoded_predictions, decoded_targets)):
-                                print(f"------EVAL SUBTASK SAMPLE {i}:")
-                                print(f"  PRED: {pred}")
-                                print(f"  TARGET: {target}")
+                                print(f"PRED {i}:   {pred}")
+                                print(f"TARGET {i}: {target}")
                         except Exception as e:
                             print(f"------EVAL SUBTASK DECODE ERROR: {e}")
                     
