@@ -75,91 +75,24 @@ def create_action_pred_dataset(data, repo_id, robot_type, fps, dof):
     
 def create_subtask_pred_dataset(data, repo_id, robot_type, fps, push):
     """Create and populate LeRobot dataset for subtask prediction task."""
+    RECENT_FRAMES = 10
+    KEYFRAMES = 6
+    
     ds = LeRobotDataset.create(
         repo_id   = repo_id,    
         robot_type= robot_type,
         fps       = fps,
         features  = {
-            "recent_frame_1": {
+            **{f"recent_frame_{i}": {
                 "dtype": "image",
                 "shape": (180, 320, 3),
                 "names": ["height", "width", "channel"],
-            },
-            "recent_frame_2": {
+            } for i in range(1, RECENT_FRAMES + 1)}, 
+            **{f"keyframe_{i}": {
                 "dtype": "image",
                 "shape": (180, 320, 3),
                 "names": ["height", "width", "channel"],
-            },
-            "recent_frame_3": {
-                "dtype": "image",
-                "shape": (180, 320, 3),
-                "names": ["height", "width", "channel"],
-            },
-            "recent_frame_4": {
-                "dtype": "image",
-                "shape": (180, 320, 3),
-                "names": ["height", "width", "channel"],
-            },
-            "recent_frame_5": {
-                "dtype": "image",
-                "shape": (180, 320, 3),
-                "names": ["height", "width", "channel"],
-            },
-            "recent_frame_6": {
-                "dtype": "image",
-                "shape": (180, 320, 3),
-                "names": ["height", "width", "channel"],
-            },
-            "recent_frame_7": {
-                "dtype": "image",
-                "shape": (180, 320, 3),
-                "names": ["height", "width", "channel"],
-            },
-            "recent_frame_8": {
-                "dtype": "image",
-                "shape": (180, 320, 3),
-                "names": ["height", "width", "channel"],
-            },
-            "recent_frame_9": {
-                "dtype": "image",
-                "shape": (180, 320, 3),
-                "names": ["height", "width", "channel"],
-            },
-            "recent_frame_10": {
-                "dtype": "image",
-                "shape": (180, 320, 3),
-                "names": ["height", "width", "channel"],
-            },
-            "keyframe_1": {
-                "dtype": "image",
-                "shape": (180, 320, 3),
-                "names": ["height", "width", "channel"],
-            },
-            "keyframe_2": {
-                "dtype": "image",
-                "shape": (180, 320, 3),
-                "names": ["height", "width", "channel"],
-            },
-            "keyframe_3": {
-                "dtype": "image",
-                "shape": (180, 320, 3),
-                "names": ["height", "width", "channel"],
-            },
-            "keyframe_4": {
-                "dtype": "image",
-                "shape": (180, 320, 3),
-                "names": ["height", "width", "channel"],
-            },
-            "keyframe_5": {
-                "dtype": "image",
-                "shape": (180, 320, 3),
-                "names": ["height", "width", "channel"],
-            },
-            "keyframe_6": {
-                "dtype": "image",
-                "shape": (180, 320, 3),
-                "names": ["height", "width", "channel"],
-            },
+            } for i in range(1, KEYFRAMES + 1)},  
             "prompt": {
                 "dtype": "string",
                 "shape": (1,),
@@ -182,29 +115,22 @@ def create_subtask_pred_dataset(data, repo_id, robot_type, fps, push):
         prompt = row.prompt
         subtask_target = row.subtask_target 
         
-        keyframe_1 = getattr(row, 'keyframe_1', null_image)
-        keyframe_2 = getattr(row, 'keyframe_2', null_image)
-        keyframe_3 = getattr(row, 'keyframe_3', null_image)
-        keyframe_4 = getattr(row, 'keyframe_4', null_image)
-        keyframe_5 = getattr(row, 'keyframe_5', null_image)
-        keyframe_6 = getattr(row, 'keyframe_6', null_image)
-        recent_frame_1 = getattr(row, 'recent_frame_1', null_image)
-        recent_frame_2 = getattr(row, 'recent_frame_2', null_image)
-        recent_frame_3 = getattr(row, 'recent_frame_3', null_image)
-        recent_frame_4 = getattr(row, 'recent_frame_4', null_image)
-        recent_frame_5 = getattr(row, 'recent_frame_5', null_image)
-        recent_frame_6 = getattr(row, 'recent_frame_6', null_image)
-        recent_frame_7 = getattr(row, 'recent_frame_7', null_image)
-        recent_frame_8 = getattr(row, 'recent_frame_8', null_image)
-        recent_frame_9 = getattr(row, 'recent_frame_9', null_image)
-        recent_frame_10 = getattr(row, 'recent_frame_10', null_image)
+        keyframes = {}
+        for i in range(1, KEYFRAMES + 1):
+            keyframes[f"keyframe_{i}"] = getattr(row, f'keyframe_{i}', null_image)
+        
+        recent_frames = {}
+        for i in range(1, RECENT_FRAMES + 1):
+            recent_frames[f"recent_frame_{i}"] = getattr(row, f'recent_frame_{i}', null_image)
         
         # Additional check for null values (NaN/float) in existing fields
-        frames = [keyframe_1, keyframe_2, keyframe_3, keyframe_4, keyframe_5, keyframe_6, recent_frame_1, recent_frame_2, recent_frame_3, recent_frame_4, recent_frame_5, recent_frame_6, recent_frame_7, recent_frame_8, recent_frame_9, recent_frame_10]
-        frames = [null_image if type(frame) == float else frame for frame in frames]
-        keyframe_1, keyframe_2, keyframe_3, keyframe_4, keyframe_5, keyframe_6, recent_frame_1, recent_frame_2, recent_frame_3, recent_frame_4, recent_frame_5, recent_frame_6, recent_frame_7, recent_frame_8, recent_frame_9, recent_frame_10 = frames
+        all_frames = {**keyframes, **recent_frames}
+        for key, frame in all_frames.items():
+            if type(frame) == float:
+                all_frames[key] = null_image
 
-        ds.add_frame(frame = {"recent_frame_1": recent_frame_1, "recent_frame_2": recent_frame_2, "recent_frame_3": recent_frame_3, "recent_frame_4": recent_frame_4, "recent_frame_5": recent_frame_5, "recent_frame_6": recent_frame_6, "recent_frame_7": recent_frame_7, "recent_frame_8": recent_frame_8, "recent_frame_9": recent_frame_9, "recent_frame_10": recent_frame_10, "keyframe_1": keyframe_1, "keyframe_2": keyframe_2, "keyframe_3": keyframe_3, "keyframe_4": keyframe_4, "keyframe_5": keyframe_5, "keyframe_6": keyframe_6, "prompt": prompt, "subtask_target": subtask_target}, task = prompt)
+        frame_data = {**all_frames, "prompt": prompt, "subtask_target": subtask_target}
+        ds.add_frame(frame=frame_data, task=prompt)
     ds.save_episode()
 
     if push:
