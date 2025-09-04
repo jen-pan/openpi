@@ -1,3 +1,9 @@
+#Data files.
+*.csv
+*.pkl
+*.json
+*.mp4
+
 # Data directories.
 assets/
 checkpoints/
