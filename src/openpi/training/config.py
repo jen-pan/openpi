@@ -988,7 +988,6 @@ _CONFIGS = [
         ).get_freeze_filter(),
         ema_decay=None,
     ), 
-    
     TrainConfig(
         name="pi05_robomemory_finetune",
         model=pi0.Pi0Config(
@@ -1613,6 +1612,46 @@ _CONFIGS = [
         ).get_freeze_filter(),
         ema_decay=None,
     ), 
+    TrainConfig(
+        name="pi05_counting_finetune",
+        model=pi0.Pi0Config(
+            pi05=True, action_dim=32, action_horizon=16
+            # max_token_len=180,
+        ),
+        data=LeRobotRoboMemoryDataConfig(
+            repo_id="ajaysri/counting_scoops-train",
+            base_config=DataConfig(prompt_from_task=True),
+            assets=AssetsConfig( 
+                assets_dir= "gs://openpi-assets-preview/checkpoints/pi05_droid/assets",
+                asset_id="droid"
+            ),
+        ),
+        weight_loader=weight_loaders.CheckpointWeightLoader("/hai/scratch/ajaysri/openpi/checkpoints/pi05_counting_finetune/pi05_counting_counting/6000/params"),
+        num_train_steps=20_000,
+        batch_size=128,
+        # # Reduce memory by disabling EMA and sharding parameters across all 8 devcices.
+        fsdp_devices=4,
+    ),
+    TrainConfig(
+        name="pi05_dusting_finetune_gpu1",
+        model=pi0.Pi0Config(
+            pi05=True, action_dim=32, action_horizon=16
+            # max_token_len=180,
+        ),
+        data=LeRobotRoboMemoryDataConfig(
+            repo_id="ajaysri/dusting-train",
+            base_config=DataConfig(prompt_from_task=True),
+            assets=AssetsConfig( 
+                assets_dir= "gs://openpi-assets-preview/checkpoints/pi05_droid/assets",
+                asset_id="droid"
+            ),
+        ),
+        weight_loader=weight_loaders.CheckpointWeightLoader("/hai/scratch/ajaysri/openpi/checkpoints/pi05_counting_finetune/pi05_counting_counting/6000/params"),
+        num_train_steps=20_000,
+        batch_size=16,
+        # # Reduce memory by disabling EMA and sharding parameters across all 8 devcices.
+        fsdp_devices=1,
+    ),
     #
     # ALOHA Sim configs. This config is used to demonstrate how to train on a simple simulated environment.
     #
