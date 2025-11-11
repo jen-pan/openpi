@@ -21,6 +21,7 @@ import openpi.policies.aloha_policy as aloha_policy
 import openpi.policies.droid_policy as droid_policy
 import openpi.policies.libero_policy as libero_policy
 import openpi.policies.robomemory_policy as robomemory_policy
+import openpi.policies.robocerebra_policy as robocerebra_policy
 import openpi.shared.download as _download
 import openpi.shared.normalize as _normalize
 import openpi.training.droid_rlds_dataset as droid_rlds_dataset
@@ -474,6 +475,46 @@ class LeRobotRoboMemoryDataConfig(DataConfigFactory):
             model_transforms=model_transforms,
         )
 
+
+@dataclasses.dataclass(frozen=True)
+class LeRobotRoboCerebraDataConfig(DataConfigFactory):
+    """
+    This config is used to configure transforms that are applied at various parts of the data pipeline.
+    For your own dataset, you can copy this class and modify the transforms to match your dataset based on the
+    comments below.
+    """
+
+    @override
+
+    def create(self, assets_dirs: pathlib.Path, model_config: _model.BaseModelConfig) -> DataConfig:
+        repack_transform = _transforms.Group(
+            inputs=[
+                _transforms.RepackTransform(
+                    {
+                        "image": "image",
+                        "wrist_image": "wrist_image",
+                        "state": "state",
+                        "actions": "actions",
+                        "prompt": "prompt",
+                    }
+                )
+            ]
+        )
+
+        data_transforms = _transforms.Group(
+            inputs=[robocerebra_policy.RoboCerebraInputs(model_type=model_config.model_type)],
+            outputs=[robocerebra_policy.RoboCerebraOutputs()],
+        )
+
+        model_transforms = ModelTransformFactory()(model_config)
+
+        return dataclasses.replace(
+            self.create_base_config(assets_dirs, model_config),
+            repack_transforms=repack_transform,
+            data_transforms=data_transforms,
+            model_transforms=model_transforms,
+        )
+
 @dataclasses.dataclass(frozen=True)
 class TrainConfig:
     # Name of the config. Must be unique. Will be used to reference this config.
@@ -522,6 +563,12 @@ class TrainConfig:
     save_interval: int = 1000
     # If set, any existing checkpoints matching step % keep_period == 0 will not be deleted.
     keep_period: int | None = 3000
+
+    # Evaluation settings.
+    # If false, evaluation is completely disabled during training.
+    eval_enabled: bool = True
+    # How often (in steps) to run evaluation. Only used if eval_enabled is true.
+    eval_interval: int = 1000
 
     # If true, will overwrite the checkpoint directory if it already exists.
     overwrite: bool = False
@@ -917,6 +964,32 @@ _CONFIGS = [
         ema_decay=None,
     ),  
     TrainConfig(
+        name="pi05_dusting_low_mem_finetune",
+        model=pi0.Pi0Config(
+            pi05=True,
+            action_dim=32, 
+            action_horizon=16, 
+            paligemma_variant="gemma_2b_lora"
+            # max_token_len=180,
+        ),
+        data=LeRobotRoboMemoryDataConfig(
+            repo_id="ajaysri/dusting-train",
+            base_config=DataConfig(prompt_from_task=True),
+            assets=AssetsConfig(
+                assets_dir="gs://openpi-assets-preview/checkpoints/pi05_droid/assets",
+                asset_id="droid"
+            ),
+        ),
+        weight_loader=weight_loaders.CheckpointWeightLoader("gs://openpi-assets-preview/checkpoints/pi05_droid/params"),
+        num_train_steps=20_000,
+        batch_size=16,
+        freeze_filter=pi0.Pi0Config(
+            pi05=True, action_dim=32, action_horizon=16, paligemma_variant="gemma_2b_lora"
+        ).get_freeze_filter(),
+        ema_decay=None,
+    ), 
+    
+    TrainConfig(
         name="pi05_robomemory_finetune",
         model=pi0.Pi0Config(
             pi05=True, action_dim=32, action_horizon=16
@@ -976,8 +1049,570 @@ _CONFIGS = [
         weight_loader=weight_loaders.CheckpointWeightLoader("gs://openpi-assets-preview/checkpoints/pi05_droid/params"),
         num_train_steps=20_000,
         batch_size=128,
+        # # Reduce memory by disabling EMA and sharding parameters across all 8 devices.
+        fsdp_devices=8,
     ),
-    
+    TrainConfig(
+        name="pi05_dusting_e2e",
+        model=pi0.Pi0Config(
+            pi05=True, action_dim=32, action_horizon=16
+            # max_token_len=180,
+        ),
+        data=LeRobotRoboMemoryDataConfig(
+            repo_id="ajaysri/dusting_e2e",
+            base_config=DataConfig(prompt_from_task=True),
+            assets=AssetsConfig( 
+                assets_dir= "gs://openpi-assets-preview/checkpoints/pi05_droid/assets",
+                asset_id="droid"
+            ),
+        ),
+        weight_loader=weight_loaders.CheckpointWeightLoader("gs://openpi-assets-preview/checkpoints/pi05_droid/params"),
+        num_train_steps=20_000,
+        batch_size=126,
+        # # Reduce memory by disabling EMA and sharding parameters across all 8 devices.
+        fsdp_devices=3,
+    ),
+    TrainConfig(
+        name="pi05_robocerebra_finetune",
+        model=pi0.Pi0Config(
+            pi05=True, action_dim=32, action_horizon=16
+        ),
+        data=LeRobotRoboCerebraDataConfig(
+            repo_id="jennypan00/robocerebra",
+            base_config=DataConfig(prompt_from_task=True),
+            assets=AssetsConfig( 
+                assets_dir= "gs://openpi-assets-preview/checkpoints/pi05_droid/assets",
+                asset_id="droid"
+            ),
+        ),
+        weight_loader=weight_loaders.CheckpointWeightLoader("gs://openpi-assets-preview/checkpoints/pi05_droid/params"),
+        num_train_steps=20_000,
+        batch_size=128,
+        # # Reduce memory by disabling EMA and sharding parameters across all 8 devices.
+        fsdp_devices=4,
+    ),
+    TrainConfig(
+        name="pi05_robocerebra_finetune_gpu3",
+        model=pi0.Pi0Config(
+            pi05=True, action_dim=32, action_horizon=16
+        ),
+        data=LeRobotRoboCerebraDataConfig(
+            repo_id="jennypan00/robocerebra",
+            base_config=DataConfig(prompt_from_task=True),
+            assets=AssetsConfig( 
+                assets_dir= "gs://openpi-assets-preview/checkpoints/pi05_droid/assets",
+                asset_id="droid"
+            ),
+        ),
+        weight_loader=weight_loaders.CheckpointWeightLoader("gs://openpi-assets-preview/checkpoints/pi05_droid/params"),
+        num_train_steps=20_000,
+        batch_size=126,
+        # # Reduce memory by disabling EMA and sharding parameters across all 8 devices.
+        fsdp_devices=3,
+    ),
+    TrainConfig(
+        name="pi05_robocerebra_finetune_gpu8",
+        model=pi0.Pi0Config(
+            pi05=True, action_dim=32, action_horizon=16
+        ),
+        data=LeRobotRoboCerebraDataConfig(
+            repo_id="jennypan00/robocerebra",
+            base_config=DataConfig(prompt_from_task=True),
+            assets=AssetsConfig( 
+                assets_dir= "gs://openpi-assets-preview/checkpoints/pi05_droid/assets",
+                asset_id="droid"
+            ),
+        ),
+        weight_loader=weight_loaders.CheckpointWeightLoader("gs://openpi-assets-preview/checkpoints/pi05_droid/params"),
+        num_train_steps=20_000,
+        batch_size=128,
+        # # Reduce memory by disabling EMA and sharding parameters across all 8 devices.
+        fsdp_devices=8,
+    ),
+    TrainConfig(
+        name="pi05_robocerebra_finetune_gpu1",
+        model=pi0.Pi0Config(
+            pi05=True, action_dim=32, action_horizon=16
+        ),
+        data=LeRobotRoboCerebraDataConfig(
+            repo_id="jennypan00/robocerebra",
+            base_config=DataConfig(prompt_from_task=True),
+            assets=AssetsConfig( 
+                assets_dir= "gs://openpi-assets-preview/checkpoints/pi05_droid/assets",
+                asset_id="droid"
+            ),
+        ),
+        weight_loader=weight_loaders.CheckpointWeightLoader("gs://openpi-assets-preview/checkpoints/pi05_droid/params"),
+        num_train_steps=20_000,
+        batch_size=1,
+        # # Reduce memory by disabling EMA and sharding parameters across all 8 devices.
+        fsdp_devices=1,
+    ),
+    TrainConfig(
+        name="pi05_counting_finetune",
+        model=pi0.Pi0Config(
+            pi05=True, action_dim=32, action_horizon=16
+            # max_token_len=180,
+        ),
+        data=LeRobotRoboMemoryDataConfig(
+            repo_id="ajaysri/counting_scoops-train",
+            base_config=DataConfig(prompt_from_task=True),
+            assets=AssetsConfig( 
+                assets_dir= "gs://openpi-assets-preview/checkpoints/pi05_droid/assets",
+                asset_id="droid"
+            ),
+        ),
+        weight_loader=weight_loaders.CheckpointWeightLoader("/hai/scratch/ajaysri/openpi/checkpoints/pi05_counting_finetune/pi05_counting_counting/6000/params"),
+        num_train_steps=20_000,
+        batch_size=128,
+        # # Reduce memory by disabling EMA and sharding parameters across all 8 devcices.
+        fsdp_devices=4,
+    ),
+    TrainConfig(
+        name="pi05_dusting_finetune_gpu1",
+        model=pi0.Pi0Config(
+            pi05=True, action_dim=32, action_horizon=16
+            # max_token_len=180,
+        ),
+        data=LeRobotRoboMemoryDataConfig(
+            repo_id="ajaysri/dusting-train",
+            base_config=DataConfig(prompt_from_task=True),
+            assets=AssetsConfig( 
+                assets_dir= "gs://openpi-assets-preview/checkpoints/pi05_droid/assets",
+                asset_id="droid"
+            ),
+        ),
+        weight_loader=weight_loaders.CheckpointWeightLoader("/hai/scratch/ajaysri/openpi/checkpoints/pi05_counting_finetune/pi05_counting_counting/6000/params"),
+        num_train_steps=20_000,
+        batch_size=16,
+        # # Reduce memory by disabling EMA and sharding parameters across all 8 devcices.
+        fsdp_devices=1,
+    ),
+    TrainConfig(
+        name="pi05_dusting_finetune_gpu4",
+        model=pi0.Pi0Config(
+            pi05=True, action_dim=32, action_horizon=16
+            # max_token_len=180,
+        ),
+        data=LeRobotRoboMemoryDataConfig(
+            repo_id="ajaysri/dusting-train",
+            base_config=DataConfig(prompt_from_task=True),
+            assets=AssetsConfig( 
+                assets_dir= "gs://openpi-assets-preview/checkpoints/pi05_droid/assets",
+                asset_id="droid"
+            ),
+        ),
+        weight_loader=weight_loaders.CheckpointWeightLoader("/hai/scratch/ajaysri/openpi/checkpoints/pi05_counting_finetune/pi05_counting_counting/6000/params"),
+        num_train_steps=20_000,
+        batch_size=128,
+        # # Reduce memory by disabling EMA and sharding parameters across all 8 devcices.
+        fsdp_devices=4,
+    ),
+    TrainConfig(
+        name="pi05_dusting_finetune_fixed_gpu4",
+        model=pi0.Pi0Config(
+            pi05=True, action_dim=32, action_horizon=16
+            # max_token_len=180,
+        ),
+        data=LeRobotRoboMemoryDataConfig(
+            repo_id="ajaysri/dusting-train",
+            base_config=DataConfig(prompt_from_task=True),
+            assets=AssetsConfig( 
+                assets_dir= "gs://openpi-assets-preview/checkpoints/pi05_droid/assets",
+                asset_id="droid"
+            ),
+        ),
+        weight_loader=weight_loaders.CheckpointWeightLoader("gs://openpi-assets-preview/checkpoints/pi05_droid/params"),
+        num_train_steps=20_000,
+        batch_size=128,
+        # # Reduce memory by disabling EMA and sharding parameters across all 8 devcices.
+        fsdp_devices=4,
+    ),
+    TrainConfig(
+        name="pi05_counting_finetune_gpu8",
+        model=pi0.Pi0Config(
+            pi05=True, action_dim=32, action_horizon=16
+            # max_token_len=180,
+        ),
+        data=LeRobotRoboMemoryDataConfig(
+            repo_id="ajaysri/counting_scoops-train",
+            base_config=DataConfig(prompt_from_task=True),
+            assets=AssetsConfig( 
+                assets_dir= "gs://openpi-assets-preview/checkpoints/pi05_droid/assets",
+                asset_id="droid"
+            ),
+        ),
+        weight_loader=weight_loaders.CheckpointWeightLoader("/hai/scratch/ajaysri/openpi/checkpoints/pi05_counting_finetune/pi05_counting_counting/6000/params"),
+        num_train_steps=20_000,
+        batch_size=128,
+        # # Reduce memory by disabling EMA and sharding parameters across all 8 devcices.
+        fsdp_devices=8,
+    ),
+    TrainConfig(
+        name="pi05_counting_finetune_gpu1",
+        model=pi0.Pi0Config(
+            pi05=True, action_dim=32, action_horizon=16
+            # max_token_len=180,
+        ),
+        data=LeRobotRoboMemoryDataConfig(
+            repo_id="ajaysri/counting_scoops-train",
+            base_config=DataConfig(prompt_from_task=True),
+            assets=AssetsConfig( 
+                assets_dir= "gs://openpi-assets-preview/checkpoints/pi05_droid/assets",
+                asset_id="droid"
+            ),
+        ),
+        weight_loader=weight_loaders.CheckpointWeightLoader("gs://openpi-assets-preview/checkpoints/pi05_droid/params"),
+        num_train_steps=20_000,
+        batch_size=32,
+        # # Reduce memory by disabling EMA and sharding parameters across all 8 devices.
+        fsdp_devices=1,
+    ),
+    TrainConfig(
+        name="pi05_counting_w_resets_finetune_gpu1",
+        model=pi0.Pi0Config(
+            pi05=True, action_dim=32, action_horizon=16
+            # max_token_len=180,
+        ),
+        data=LeRobotRoboMemoryDataConfig(
+            repo_id="ajaysri/counting_w_resets_50_train",
+            base_config=DataConfig(prompt_from_task=True),
+            assets=AssetsConfig( 
+                assets_dir= "gs://openpi-assets-preview/checkpoints/pi05_droid/assets",
+                asset_id="droid"
+            ),
+        ),
+        weight_loader=weight_loaders.CheckpointWeightLoader("gs://openpi-assets-preview/checkpoints/pi05_droid/params"),
+        num_train_steps=20_000,
+        batch_size=32,
+        # # Reduce memory by disabling EMA and sharding parameters across all 8 devices.
+        fsdp_devices=1,
+    ),
+    TrainConfig(
+        name="pi05_counting_w_resets_finetune_gpu4",
+        model=pi0.Pi0Config(
+            pi05=True, action_dim=32, action_horizon=16
+            # max_token_len=180,
+        ),
+        data=LeRobotRoboMemoryDataConfig(
+            repo_id="ajaysri/counting_w_resets_50_train",
+            base_config=DataConfig(prompt_from_task=True),
+            assets=AssetsConfig( 
+                assets_dir= "gs://openpi-assets-preview/checkpoints/pi05_droid/assets",
+                asset_id="droid"
+            ),
+        ),
+        weight_loader=weight_loaders.CheckpointWeightLoader("gs://openpi-assets-preview/checkpoints/pi05_droid/params"),
+        num_train_steps=9000,
+        batch_size=128,
+        # # Reduce memory by disabling EMA and sharding parameters across all 8 devices.
+        fsdp_devices=4,
+    ),
+    TrainConfig(
+        name="pi05_dusting_w_plushies_finetune_gpu4",
+        model=pi0.Pi0Config(
+            pi05=True, action_dim=32, action_horizon=16
+            # max_token_len=180,
+        ),
+        data=LeRobotRoboMemoryDataConfig(
+            repo_id="ajaysri/dusting_toy_shelf",
+            base_config=DataConfig(prompt_from_task=True),
+            assets=AssetsConfig( 
+                assets_dir= "gs://openpi-assets-preview/checkpoints/pi05_droid/assets",
+                asset_id="droid"
+            ),
+        ),
+        weight_loader=weight_loaders.CheckpointWeightLoader("gs://openpi-assets-preview/checkpoints/pi05_droid/params"),
+        num_train_steps=9000,
+        batch_size=128,
+        # # Reduce memory by disabling EMA and sharding parameters across all 8 devices.
+        fsdp_devices=4,
+    ),
+    TrainConfig(
+        name="pi05_search_dagger_finetune_gpu4",
+        model=pi0.Pi0Config(
+            pi05=True, action_dim=32, action_horizon=16
+            # max_token_len=180,
+        ),
+        data=LeRobotRoboMemoryDataConfig(
+            repo_id="ajaysri/search_with_correction",
+            base_config=DataConfig(prompt_from_task=True),
+            assets=AssetsConfig( 
+                assets_dir= "gs://openpi-assets-preview/checkpoints/pi05_droid/assets",
+                asset_id="droid"
+            ),
+        ),
+        weight_loader=weight_loaders.CheckpointWeightLoader("gs://openpi-assets-preview/checkpoints/pi05_droid/params"),
+        num_train_steps=8000,
+        batch_size=128,
+        # # Reduce memory by disabling EMA and sharding parameters across all 8 devices.
+        fsdp_devices=4,
+    ),
+    TrainConfig(
+        name="pi05_dusting_dagger_finetune_gpu4",
+        model=pi0.Pi0Config(
+            pi05=True, action_dim=32, action_horizon=16
+            # max_token_len=180,
+        ),
+        data=LeRobotRoboMemoryDataConfig(
+            repo_id="ajaysri/dusting_overlapping_boundaries_with_correction",
+            base_config=DataConfig(prompt_from_task=True),
+            assets=AssetsConfig( 
+                assets_dir= "gs://openpi-assets-preview/checkpoints/pi05_droid/assets",
+                asset_id="droid"
+            ),
+        ),
+        weight_loader=weight_loaders.CheckpointWeightLoader("gs://openpi-assets-preview/checkpoints/pi05_droid/params"),
+        num_train_steps=8000,
+        batch_size=128,
+        # # Reduce memory by disabling EMA and sharding parameters across all 8 devices.
+        fsdp_devices=4,
+    ),
+    TrainConfig(
+        name="pi05_dusting_dagger_no_drop_duster_finetune_gpu4",
+        model=pi0.Pi0Config(
+            pi05=True, action_dim=32, action_horizon=16
+            # max_token_len=180,
+        ),
+        data=LeRobotRoboMemoryDataConfig(
+            repo_id="ajaysri/dusting_retries_no_drop_duster",
+            base_config=DataConfig(prompt_from_task=True),
+            assets=AssetsConfig( 
+                assets_dir= "gs://openpi-assets-preview/checkpoints/pi05_droid/assets",
+                asset_id="droid"
+            ),
+        ),
+        weight_loader=weight_loaders.CheckpointWeightLoader("gs://openpi-assets-preview/checkpoints/pi05_droid/params"),
+        num_train_steps=8000,
+        batch_size=128,
+        # # Reduce memory by disabling EMA and sharding parameters across all 8 devices.
+        fsdp_devices=4,
+    ),
+    TrainConfig(
+        name="pi05_multitask_finetune_gpu4",
+        model=pi0.Pi0Config(
+            pi05=True, action_dim=32, action_horizon=16
+            # max_token_len=180,
+        ),
+        data=LeRobotRoboMemoryDataConfig(
+            repo_id="ajaysri/memer_robotics_dataset",
+            base_config=DataConfig(prompt_from_task=True),
+            assets=AssetsConfig( 
+                assets_dir= "gs://openpi-assets-preview/checkpoints/pi05_droid/assets",
+                asset_id="droid"
+            ),
+        ),
+        weight_loader=weight_loaders.CheckpointWeightLoader("gs://openpi-assets-preview/checkpoints/pi05_droid/params"),
+        num_train_steps=20_000,
+        batch_size=128,
+        # # Reduce memory by disabling EMA and sharding parameters across all 8 devices.
+        fsdp_devices=4,
+    ),
+    TrainConfig(
+        name="pi05_dusting_dagger_only_top_finetune_gpu4",
+        model=pi0.Pi0Config(
+            pi05=True, action_dim=32, action_horizon=16
+            # max_token_len=180,
+        ),
+        data=LeRobotRoboMemoryDataConfig(
+            repo_id="ajaysri/dusting_retries_only_top_correction",
+            base_config=DataConfig(prompt_from_task=True),
+            assets=AssetsConfig( 
+                assets_dir= "gs://openpi-assets-preview/checkpoints/pi05_droid/assets",
+                asset_id="droid"
+            ),
+        ),
+        weight_loader=weight_loaders.CheckpointWeightLoader("gs://openpi-assets-preview/checkpoints/pi05_droid/params"),
+        num_train_steps=8000,
+        batch_size=128,
+        # # Reduce memory by disabling EMA and sharding parameters across all 8 devices.
+        fsdp_devices=4,
+    ),
+    TrainConfig(
+        name="pi05_dusting_dagger_only_top_v2_finetune_gpu4",
+        model=pi0.Pi0Config(
+            pi05=True, action_dim=32, action_horizon=16
+            # max_token_len=180,
+        ),
+        data=LeRobotRoboMemoryDataConfig(
+            repo_id="ajaysri/dusting_retries_only_top_correction_v2",
+            base_config=DataConfig(prompt_from_task=True),
+            assets=AssetsConfig( 
+                assets_dir= "gs://openpi-assets-preview/checkpoints/pi05_droid/assets",
+                asset_id="droid"
+            ),
+        ),
+        weight_loader=weight_loaders.CheckpointWeightLoader("gs://openpi-assets-preview/checkpoints/pi05_droid/params"),
+        num_train_steps=8000,
+        batch_size=128,
+        # # Reduce memory by disabling EMA and sharding parameters across all 8 devices.
+        fsdp_devices=4,
+    ),
+    TrainConfig(
+        name="pi05_counting_dagger_no_drop_finetune_gpu4",
+        model=pi0.Pi0Config(
+            pi05=True, action_dim=32, action_horizon=16
+            # max_token_len=180,
+        ),
+        data=LeRobotRoboMemoryDataConfig(
+            repo_id="ajaysri/counting_dagger_no_drop",
+            base_config=DataConfig(prompt_from_task=True),
+            assets=AssetsConfig( 
+                assets_dir= "gs://openpi-assets-preview/checkpoints/pi05_droid/assets",
+                asset_id="droid"
+            ),
+        ),
+        weight_loader=weight_loaders.CheckpointWeightLoader("gs://openpi-assets-preview/checkpoints/pi05_droid/params"),
+        num_train_steps=8000,
+        batch_size=128,
+        # # Reduce memory by disabling EMA and sharding parameters across all 8 devices.
+        fsdp_devices=4,
+    ),
+    TrainConfig(
+        name="pi05_counting_dagger_finetune_gpu4",
+        model=pi0.Pi0Config(
+            pi05=True, action_dim=32, action_horizon=16
+            # max_token_len=180,
+        ),
+        data=LeRobotRoboMemoryDataConfig(
+            repo_id="ajaysri/counting_with_dagger_1_2/",
+            base_config=DataConfig(prompt_from_task=True),
+            assets=AssetsConfig( 
+                assets_dir= "gs://openpi-assets-preview/checkpoints/pi05_droid/assets",
+                asset_id="droid"
+            ),
+        ),
+        weight_loader=weight_loaders.CheckpointWeightLoader("gs://openpi-assets-preview/checkpoints/pi05_droid/params"),
+        num_train_steps=8000,
+        batch_size=128,
+        # # Reduce memory by disabling EMA and sharding parameters across all 8 devices.
+        fsdp_devices=4,
+    ),
+    TrainConfig(
+        name="pi05_dusting_boundaries_finetune_gpu4",
+        model=pi0.Pi0Config(
+            pi05=True, action_dim=32, action_horizon=16
+            # max_token_len=180,
+        ),
+        data=LeRobotRoboMemoryDataConfig(
+            repo_id="ajaysri/dusting_overlapping_boundaries",
+            base_config=DataConfig(prompt_from_task=True),
+            assets=AssetsConfig( 
+                assets_dir= "gs://openpi-assets-preview/checkpoints/pi05_droid/assets",
+                asset_id="droid"
+            ),
+        ),
+        weight_loader=weight_loaders.CheckpointWeightLoader("gs://openpi-assets-preview/checkpoints/pi05_droid/params"),
+        num_train_steps=9000,
+        batch_size=128,
+        # # Reduce memory by disabling EMA and sharding parameters across all 8 devices.
+        fsdp_devices=4,
+    ),
+     TrainConfig(
+        name="pi05_counting_no_drop_dagger_finetune_gpu4",
+        model=pi0.Pi0Config(
+            pi05=True, action_dim=32, action_horizon=16
+            # max_token_len=180,
+        ),
+        data=LeRobotRoboMemoryDataConfig(
+            repo_id="ajaysri/counting_no_drop_dagger",
+            base_config=DataConfig(prompt_from_task=True),
+            assets=AssetsConfig( 
+                assets_dir= "gs://openpi-assets-preview/checkpoints/pi05_droid/assets",
+                asset_id="droid"
+            ),
+        ),
+        weight_loader=weight_loaders.CheckpointWeightLoader("gs://openpi-assets-preview/checkpoints/pi05_droid/params"),
+        num_train_steps=9000,
+        batch_size=128,
+        # # Reduce memory by disabling EMA and sharding parameters across all 8 devices.
+        fsdp_devices=4,
+    ),
+    TrainConfig(
+        name="pi05_dusting_w_plushies_finetune_gpu8",
+        model=pi0.Pi0Config(
+            pi05=True, action_dim=32, action_horizon=16
+            # max_token_len=180,
+        ),
+        data=LeRobotRoboMemoryDataConfig(
+            repo_id="ajaysri/dusting_toy_shelf",
+            base_config=DataConfig(prompt_from_task=True),
+            assets=AssetsConfig( 
+                assets_dir= "gs://openpi-assets-preview/checkpoints/pi05_droid/assets",
+                asset_id="droid"
+            ),
+        ),
+        weight_loader=weight_loaders.CheckpointWeightLoader("gs://openpi-assets-preview/checkpoints/pi05_droid/params"),
+        num_train_steps=9000,
+        batch_size=128,
+        # # Reduce memory by disabling EMA and sharding parameters across all 8 devices.
+        fsdp_devices=8,
+    ),
+    TrainConfig(
+        name="pi05_counting_no_drop_finetune_gpu1",
+        model=pi0.Pi0Config(
+            pi05=True, action_dim=32, action_horizon=16
+            # max_token_len=180,
+        ),
+        data=LeRobotRoboMemoryDataConfig(
+            repo_id="ajaysri/counting_no_drop",
+            base_config=DataConfig(prompt_from_task=True),
+            assets=AssetsConfig( 
+                assets_dir= "gs://openpi-assets-preview/checkpoints/pi05_droid/assets",
+                asset_id="droid"
+            ),
+        ),
+        weight_loader=weight_loaders.CheckpointWeightLoader("gs://openpi-assets-preview/checkpoints/pi05_droid/params"),
+        num_train_steps=20_000,
+        batch_size=32,
+        # # Reduce memory by disabling EMA and sharding parameters across all 8 devices.
+        fsdp_devices=1,
+    ),
+    TrainConfig(
+        name="pi05_counting_no_drop_finetune_gpu4",
+        model=pi0.Pi0Config(
+            pi05=True, action_dim=32, action_horizon=16
+            # max_token_len=180,
+        ),
+        data=LeRobotRoboMemoryDataConfig(
+            repo_id="ajaysri/counting_no_drop",
+            base_config=DataConfig(prompt_from_task=True),
+            assets=AssetsConfig( 
+                assets_dir= "gs://openpi-assets-preview/checkpoints/pi05_droid/assets",
+                asset_id="droid"
+            ),
+        ),
+        weight_loader=weight_loaders.CheckpointWeightLoader("gs://openpi-assets-preview/checkpoints/pi05_droid/params"),
+        num_train_steps=20_000,
+        batch_size=128,
+        # # Reduce memory by disabling EMA and sharding parameters across all 8 devices.
+        fsdp_devices=4,
+    ),
+    TrainConfig(
+        name="pi05_counting_w_resets_low_mem_finetune_gpu1",
+        model=pi0.Pi0Config(
+            pi05=True,
+            action_dim=32, 
+            action_horizon=16, 
+            paligemma_variant="gemma_2b_lora"
+            # max_token_len=180,
+        ),
+        data=LeRobotRoboMemoryDataConfig(
+            repo_id="ajaysri/counting_w_resets_50_train",
+            base_config=DataConfig(prompt_from_task=True),
+            assets=AssetsConfig(
+                assets_dir="gs://openpi-assets-preview/checkpoints/pi05_droid/assets",
+                asset_id="droid"
+            ),
+        ),
+        weight_loader=weight_loaders.CheckpointWeightLoader("gs://openpi-assets-preview/checkpoints/pi05_droid/params"),
+        num_train_steps=20_000,
+        batch_size=8,
+        freeze_filter=pi0.Pi0Config(
+            pi05=True, action_dim=32, action_horizon=16, paligemma_variant="gemma_2b_lora"
+        ).get_freeze_filter(),
+        ema_decay=None,
+    ), 
     #
     # ALOHA Sim configs. This config is used to demonstrate how to train on a simple simulated environment.
     #

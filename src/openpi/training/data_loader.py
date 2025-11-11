@@ -130,7 +130,7 @@ def create_torch_dataset(
     data_config: _config.DataConfig, action_horizon: int, model_config: _model.BaseModelConfig, is_eval: bool = False
 ) -> Dataset:
     """Create a dataset for training."""
-    if is_eval:
+    if False and is_eval:
         # repo_id = data_config.repo_id.replace("_train", "_test")
         repo_id = "ajaysri/cardboard-search-demos-test" #"jennypan00/pi0_fast_ft_droid_lerobot_test" # TODO: hardcoded for now
         print("------CREATING EVAL DATASET------", repo_id)
@@ -149,6 +149,7 @@ def create_torch_dataset(
         delta_timestamps={
             key: [t / dataset_meta.fps for t in range(action_horizon)] for key in data_config.action_sequence_keys
         },
+        tolerance_s=0.1, # TODO(ajay): Remove this
     )
 
     if data_config.prompt_from_task:
@@ -496,5 +497,5 @@ class DataLoaderImpl(DataLoader):
         return self._data_config
 
     def __iter__(self):
-        for batch in self._data_loader:
+        for batch in self._data_loader:            
             yield _model.Observation.from_dict(batch), batch["actions"]
