@@ -1136,7 +1136,7 @@ _CONFIGS = [
         data=LeRobotRoboCerebraDataConfig(
             repo_id="jennypan00/robocerebra",
             base_config=DataConfig(prompt_from_task=True),
-            assets=AssetsConfig( 
+            assets=AssetsConfig(
                 assets_dir= "gs://openpi-assets-preview/checkpoints/pi05_droid/assets",
                 asset_id="droid"
             ),
@@ -1146,6 +1146,59 @@ _CONFIGS = [
         batch_size=1,
         # # Reduce memory by disabling EMA and sharding parameters across all 8 devices.
         fsdp_devices=1,
+    ),
+    # pi05_base robocerebra finetuning configs (using pi05_may21_280k_v1 base checkpoint)
+    # NOTE: No assets_dir specified - norm stats will be loaded from ./assets/{config_name}/{repo_id}
+    # Run `uv run scripts/compute_norm_stats.py pi05_base_robocerebra_finetune_gpu1` first!
+    TrainConfig(
+        name="pi05_base_robocerebra_finetune_gpu1",
+        model=pi0.Pi0Config(
+            pi05=True, action_dim=32, action_horizon=16
+        ),
+        data=LeRobotRoboCerebraDataConfig(
+            repo_id="jennypan00/robocerebra",
+            base_config=DataConfig(prompt_from_task=True),
+            # No assets specified - will compute from scratch via compute_norm_stats.py
+        ),
+        weight_loader=weight_loaders.CheckpointWeightLoader("gs://openpi-assets-preview/checkpoints/pi05_may21_280k_v1/params"),
+        num_train_steps=20_000,
+        batch_size=1,
+        fsdp_devices=1,
+    ),
+    TrainConfig(
+        name="pi05_base_robocerebra_finetune_gpu3",
+        model=pi0.Pi0Config(
+            pi05=True, action_dim=32, action_horizon=16
+        ),
+        data=LeRobotRoboCerebraDataConfig(
+            repo_id="jennypan00/robocerebra",
+            base_config=DataConfig(prompt_from_task=True),
+            # No assets specified - will compute from scratch via compute_norm_stats.py
+        ),
+        weight_loader=weight_loaders.CheckpointWeightLoader("gs://openpi-assets-preview/checkpoints/pi05_may21_280k_v1/params"),
+        num_train_steps=20_000,
+        batch_size=126,
+        fsdp_devices=3,
+    ),
+    # LoRA configs for pi05_base robocerebra finetuning (lower memory)
+    TrainConfig(
+        name="pi05_base_robocerebra_lora_gpu1",
+        model=pi0.Pi0Config(
+            pi05=True, action_dim=32, action_horizon=16, paligemma_variant="gemma_2b_lora"
+        ),
+        data=LeRobotRoboCerebraDataConfig(
+            repo_id="jennypan00/robocerebra",
+            base_config=DataConfig(prompt_from_task=True),
+            # No assets specified - will compute from scratch via compute_norm_stats.py
+        ),
+        weight_loader=weight_loaders.CheckpointWeightLoader("gs://openpi-assets-preview/checkpoints/pi05_may21_280k_v1/params"),
+        num_train_steps=20_000,
+        batch_size=8,
+        fsdp_devices=1,
+        freeze_filter=pi0.Pi0Config(
+            pi05=True, action_dim=32, action_horizon=16, paligemma_variant="gemma_2b_lora"
+        ).get_freeze_filter(),
+        ema_decay=None,
     ),
     TrainConfig(
         name="pi05_counting_finetune",
@@ -1612,46 +1665,46 @@ _CONFIGS = [
         ).get_freeze_filter(),
         ema_decay=None,
     ), 
-    TrainConfig(
-        name="pi05_counting_finetune",
-        model=pi0.Pi0Config(
-            pi05=True, action_dim=32, action_horizon=16
-            # max_token_len=180,
-        ),
-        data=LeRobotRoboMemoryDataConfig(
-            repo_id="ajaysri/counting_scoops-train",
-            base_config=DataConfig(prompt_from_task=True),
-            assets=AssetsConfig( 
-                assets_dir= "gs://openpi-assets-preview/checkpoints/pi05_droid/assets",
-                asset_id="droid"
-            ),
-        ),
-        weight_loader=weight_loaders.CheckpointWeightLoader("/hai/scratch/ajaysri/openpi/checkpoints/pi05_counting_finetune/pi05_counting_counting/6000/params"),
-        num_train_steps=20_000,
-        batch_size=128,
-        # # Reduce memory by disabling EMA and sharding parameters across all 8 devcices.
-        fsdp_devices=4,
-    ),
-    TrainConfig(
-        name="pi05_dusting_finetune_gpu1",
-        model=pi0.Pi0Config(
-            pi05=True, action_dim=32, action_horizon=16
-            # max_token_len=180,
-        ),
-        data=LeRobotRoboMemoryDataConfig(
-            repo_id="ajaysri/dusting-train",
-            base_config=DataConfig(prompt_from_task=True),
-            assets=AssetsConfig( 
-                assets_dir= "gs://openpi-assets-preview/checkpoints/pi05_droid/assets",
-                asset_id="droid"
-            ),
-        ),
-        weight_loader=weight_loaders.CheckpointWeightLoader("/hai/scratch/ajaysri/openpi/checkpoints/pi05_counting_finetune/pi05_counting_counting/6000/params"),
-        num_train_steps=20_000,
-        batch_size=16,
-        # # Reduce memory by disabling EMA and sharding parameters across all 8 devcices.
-        fsdp_devices=1,
-    ),
+    # TrainConfig(
+    #     name="pi05_counting_finetune",
+    #     model=pi0.Pi0Config(
+    #         pi05=True, action_dim=32, action_horizon=16
+    #         # max_token_len=180,
+    #     ),
+    #     data=LeRobotRoboMemoryDataConfig(
+    #         repo_id="ajaysri/counting_scoops-train",
+    #         base_config=DataConfig(prompt_from_task=True),
+    #         assets=AssetsConfig( 
+    #             assets_dir= "gs://openpi-assets-preview/checkpoints/pi05_droid/assets",
+    #             asset_id="droid"
+    #         ),
+    #     ),
+    #     weight_loader=weight_loaders.CheckpointWeightLoader("/hai/scratch/ajaysri/openpi/checkpoints/pi05_counting_finetune/pi05_counting_counting/6000/params"),
+    #     num_train_steps=20_000,
+    #     batch_size=128,
+    #     # # Reduce memory by disabling EMA and sharding parameters across all 8 devcices.
+    #     fsdp_devices=4,
+    # ),
+    # TrainConfig(
+    #     name="pi05_dusting_finetune_gpu1",
+    #     model=pi0.Pi0Config(
+    #         pi05=True, action_dim=32, action_horizon=16
+    #         # max_token_len=180,
+    #     ),
+    #     data=LeRobotRoboMemoryDataConfig(
+    #         repo_id="ajaysri/dusting-train",
+    #         base_config=DataConfig(prompt_from_task=True),
+    #         assets=AssetsConfig( 
+    #             assets_dir= "gs://openpi-assets-preview/checkpoints/pi05_droid/assets",
+    #             asset_id="droid"
+    #         ),
+    #     ),
+    #     weight_loader=weight_loaders.CheckpointWeightLoader("/hai/scratch/ajaysri/openpi/checkpoints/pi05_counting_finetune/pi05_counting_counting/6000/params"),
+    #     num_train_steps=20_000,
+    #     batch_size=16,
+    #     # # Reduce memory by disabling EMA and sharding parameters across all 8 devcices.
+    #     fsdp_devices=1,
+    # ),
     #
     # ALOHA Sim configs. This config is used to demonstrate how to train on a simple simulated environment.
     #
