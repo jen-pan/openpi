@@ -1180,6 +1180,21 @@ _CONFIGS = [
         batch_size=126,
         fsdp_devices=3,
     ),
+    TrainConfig(
+        name="pi05_base_robocerebra_finetune_gpu8",
+        model=pi0.Pi0Config(
+            pi05=True, action_dim=32, action_horizon=16
+        ),
+        data=LeRobotRoboCerebraDataConfig(
+            repo_id="jennypan00/robocerebra",
+            base_config=DataConfig(prompt_from_task=True),
+            # No assets specified - will compute from scratch via compute_norm_stats.py
+        ),
+        weight_loader=weight_loaders.CheckpointWeightLoader("gs://openpi-assets-preview/checkpoints/pi05_may21_280k_v1/params"),
+        num_train_steps=20_000,
+        batch_size=128,
+        fsdp_devices=8,
+    ),
     # LoRA configs for pi05_base robocerebra finetuning (lower memory)
     TrainConfig(
         name="pi05_base_robocerebra_lora_gpu1",
